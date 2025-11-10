@@ -1,7 +1,7 @@
 import DefaultLayout from "@/layouts/default";
 
-export default function SeguridadPage() {
+export default function ComponentesPage() {
   return (
-    <>Seguridad</>
+    <>Componentes</>
   );
 }
