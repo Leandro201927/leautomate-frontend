@@ -5,7 +5,7 @@ export const siteConfig = {
   description: "Make beautiful websites regardless of your design experience.",
   navItems: [
     {
-      label: "Paginas",
+      label: "Sitios Web",
       href: "/paginas",
     },
     {
