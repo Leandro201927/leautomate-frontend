@@ -1,11 +1,13 @@
 import { Link } from "@heroui/link";
 import { Breadcrumbs, BreadcrumbItem } from "@heroui/breadcrumbs";
 import { Navbar, NavbarBrand, NavbarContent } from "@heroui/navbar";
+import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
+import { Button } from "@heroui/button";
 import { Logo } from "@/components/icons";
 import { useEffect, useState } from "react";
 import { siteConfig } from "@/config/site";
 
-export const Header = () => {
+export const Header = ({ collapsedSidebar = false }: { collapsedSidebar?: boolean }) => {
   const [currentPath, setCurrentPath] = useState("/");
 
   useEffect(() => {
@@ -24,6 +26,22 @@ export const Header = () => {
 
   return (
     <Navbar maxWidth="xl" position="sticky" isBordered>
+      {collapsedSidebar && (
+        <NavbarContent className="basis-auto max-w-[100px]">
+          <Dropdown>
+            <DropdownTrigger>
+              <Button size="sm" variant="ghost">Menú</Button>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Menú de navegación">
+              {siteConfig.navItems.map((item) => (
+                <DropdownItem key={item.href} textValue={item.label}>
+                  <Link color="foreground" href={item.href}>{item.label}</Link>
+                </DropdownItem>
+              ))}
+            </DropdownMenu>
+          </Dropdown>
+        </NavbarContent>
+      )}
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand className="gap-3 max-w-fit">
           <Link className="flex justify-start items-center gap-1" color="foreground" href="/">
@@ -32,7 +50,7 @@ export const Header = () => {
           </Link>
         </NavbarBrand>
       </NavbarContent>
-      <NavbarContent className="basis-4/5 sm:basis-full" justify="start">
+      {/* <NavbarContent className="basis-4/5 sm:basis-full" justify="start">
         <Breadcrumbs>
           {crumbs.map((c) => (
             <BreadcrumbItem key={c.href} href={c.href}>
@@ -40,7 +58,7 @@ export const Header = () => {
             </BreadcrumbItem>
           ))}
         </Breadcrumbs>
-      </NavbarContent>
+      </NavbarContent> */}
     </Navbar>
   );
 };

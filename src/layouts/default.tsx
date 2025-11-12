@@ -1,14 +1,16 @@
 import { Header } from "@/components/header";
 import Sidebar from "@/components/sidebar";
-import { Outlet } from "react-router-dom";
+import { Outlet, useMatch } from "react-router-dom";
 
 export default function DefaultLayout() {
+  const isEditor = !!useMatch("/paginas/:id");
+
   return (
     <div className="relative flex flex-col h-screen">
-      <Header />
+      <Header collapsedSidebar={isEditor} />
       <main className="container mx-auto max-w-7xl flex flex-row flex-grow">
-        <Sidebar />
-        <div className="w-10/12">
+        {!isEditor && <Sidebar />}
+        <div className={isEditor ? "w-full" : "w-10/12"}>
           <Outlet />
         </div>
       </main>
