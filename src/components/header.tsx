@@ -4,10 +4,11 @@ import { Navbar, NavbarBrand, NavbarContent } from "@heroui/navbar";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
 import { Button } from "@heroui/button";
 import { Logo } from "@/components/icons";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { siteConfig } from "@/config/site";
+import { ListIcon } from "@phosphor-icons/react";
 
-export const Header = ({ collapsedSidebar = false }: { collapsedSidebar?: boolean }) => {
+export const Header = ({ collapsedSidebar = false, rightSlot }: { collapsedSidebar?: boolean; rightSlot?: ReactNode }) => {
   const [currentPath, setCurrentPath] = useState("/");
 
   useEffect(() => {
@@ -27,10 +28,12 @@ export const Header = ({ collapsedSidebar = false }: { collapsedSidebar?: boolea
   return (
     <Navbar maxWidth="xl" position="sticky" isBordered>
       {collapsedSidebar && (
-        <NavbarContent className="basis-auto max-w-[100px]">
+        <NavbarContent className="basis-auto max-w-[30px]">
           <Dropdown>
             <DropdownTrigger>
-              <Button size="sm" variant="ghost">Menú</Button>
+              <Button size="sm" variant="ghost" className="max-w-[30px] min-w-[32px] p-0">
+                <ListIcon size={18} />
+              </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Menú de navegación">
               {siteConfig.navItems.map((item) => (
@@ -50,6 +53,14 @@ export const Header = ({ collapsedSidebar = false }: { collapsedSidebar?: boolea
           </Link>
         </NavbarBrand>
       </NavbarContent>
+
+      {/* Right custom slot for page-specific tools */}
+      {rightSlot && (
+        <NavbarContent className="basis-auto" justify="end">
+          {rightSlot}
+        </NavbarContent>
+      )}
+
       {/* <NavbarContent className="basis-4/5 sm:basis-full" justify="start">
         <Breadcrumbs>
           {crumbs.map((c) => (

@@ -32,6 +32,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loading: false,
   });
 
+  console.log('EditorProvider', state);
+
   const actions: EditorActions = useMemo(
     () => ({
       async loadSite(id: string) {
