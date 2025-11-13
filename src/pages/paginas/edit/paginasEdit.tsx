@@ -5,6 +5,7 @@ import type { Component } from "@/types/clientWebsite";
 import { Card, CardBody, Button, Divider, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
 import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon } from "@phosphor-icons/react";
+import AddComponentDialog from "./components/AddComponentDialog";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -112,6 +113,7 @@ function EditorLayoutInner() {
   const [showAddPageModal, setShowAddPageModal] = useState(false);
   const [newPageType, setNewPageType] = useState<"landing-page" | "articles" | "ecommerce">("landing-page");
   const [panelsMode, setPanelsMode] = useState<"none" | "left" | "right" | "both">("both");
+  const [showAddComponentDialog, setShowAddComponentDialog] = useState(false);
 
   useEffect(() => {
     if (id) actions.loadSite(id);
@@ -190,7 +192,7 @@ function EditorLayoutInner() {
           <Card className="bg-transparent shadow-none mt-4 h-full max-h-[calc((100vh-64px)/2)] flex flex-col">
             <CardHeader className="px-3 py-2 flex flex-row items-center justify-between">
               <div className="font-semibold text-sm">Componentes</div>
-              <Button size="sm" color="primary" isDisabled={!page} onPress={() => page && actions.addComponentToPage(page.id)}>Añadir componente</Button>
+              <Button size="sm" color="primary" isDisabled={!page} onPress={() => setShowAddComponentDialog(true)}>Añadir componente</Button>
             </CardHeader>
             <CardBody>
               {!page && (
@@ -250,6 +252,11 @@ function EditorLayoutInner() {
                     label="title"
                     value={page.title}
                     onValueChange={(v) => actions.updatePage(page.id, { title: v })}
+                  />
+                  <Input
+                    label="slug"
+                    value={page.slug}
+                    onValueChange={(v) => actions.updatePage(page.id, { slug: v })}
                   />
                   <Input
                     label="meta_title"
@@ -437,6 +444,16 @@ function EditorLayoutInner() {
           )}
         </ModalContent>
       </Modal>
+
+      {/* Diálogo para añadir componente desde biblioteca */}
+      <AddComponentDialog
+        isOpen={showAddComponentDialog}
+        onOpenChange={setShowAddComponentDialog}
+        onSelect={(comp) => {
+          if (!page) return;
+          actions.addComponentToPageFromLibrary(page.id, comp);
+        }}
+      />
     </div>
   );
 }

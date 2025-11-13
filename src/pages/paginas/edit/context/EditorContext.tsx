@@ -18,6 +18,7 @@ type EditorActions = {
   updateComponentAttrs: (pageId: string, path: string[], patch: Record<string, unknown>) => void;
   addPage: (type: Page["type"]) => void;
   addComponentToPage: (pageId: string) => void;
+  addComponentToPageFromLibrary: (pageId: string, component: Component) => void;
 };
 
 const EditorContext = createContext<{ state: EditorState; actions: EditorActions } | undefined>(
@@ -130,6 +131,18 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             custom_attrs: {},
           };
           const updatedPage: Page = { ...page, components: [...(page.components || []), newComp] };
+          const pages = s.site.pages.slice();
+          pages[pageIndex] = updatedPage;
+          return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      addComponentToPageFromLibrary(pageId, component) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pageIndex = s.site.pages.findIndex((p) => p.id === pageId);
+          if (pageIndex === -1) return s;
+          const page = s.site.pages[pageIndex];
+          const updatedPage: Page = { ...page, components: [...(page.components || []), component] };
           const pages = s.site.pages.slice();
           pages[pageIndex] = updatedPage;
           return { ...s, site: { ...s.site, pages } };
