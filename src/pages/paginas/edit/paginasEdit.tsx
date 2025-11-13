@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
-import { Card, CardHeader, CardBody, Button, Divider, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
+import { Card, CardBody, Button, Divider, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
+import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon } from "@phosphor-icons/react";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -20,25 +21,24 @@ function ComponentsRecursive({ obj, path = [] }: { obj: any; path?: string[] }) 
 
   return (
     <div className="space-y-2">
-      {childKeys.map((key) => {
+      {childKeys.map((key, idx) => {
         const child = obj[key];
         const comp = child as Component;
         const currentPath = [...path, key];
         const isSelected = pathsEqual(state.selectedComponentPath, currentPath);
         return (
-          <Card
-            key={key}
-            isPressable
-            onPress={() => actions.selectComponentPath(currentPath)}
-            className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none"}
-          >
-            <CardHeader className="flex justify-between items-center">
+          <div key={key}>
+            <div
+              onClick={() => actions.selectComponentPath(currentPath)}
+              className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-2 rounded-md cursor-pointer"}
+            >
               <div className="text-sm font-semibold">{comp?.name ?? key}</div>
-            </CardHeader>
-            <CardBody>
+            </div>
+            <div className="mt-2">
               <ComponentsRecursive obj={child} path={currentPath} />
-            </CardBody>
-          </Card>
+            </div>
+            {idx < childKeys.length - 1 && <Divider className="my-2" />}
+          </div>
         );
       })}
     </div>
@@ -57,29 +57,61 @@ function getByPath(root: any, path: string[]) {
 
 function PreviewControls({ mode, setMode }: { mode: "mobile" | "tablet" | "desktop"; setMode: (m: "mobile" | "tablet" | "desktop") => void }) {
   return (
-    <div className="flex items-center gap-1">
-      <Button size="sm" variant={mode === "mobile" ? "solid" : "flat"} onPress={() => setMode("mobile")}>Mobile</Button>
-      <Button size="sm" variant={mode === "tablet" ? "solid" : "flat"} onPress={() => setMode("tablet")}>Tablet</Button>
-      <Button size="sm" variant={mode === "desktop" ? "solid" : "flat"} onPress={() => setMode("desktop")}>Desktop</Button>
-    </div>
+    <Tabs aria-label="Options" color="primary" variant="bordered" defaultSelectedKey={mode}>
+      <Tab
+        className="px-2"
+        key="mobile"
+        onClick={() => setMode("mobile")}
+        title={
+          <DeviceMobileIcon />
+        }
+      />
+      <Tab
+        className="px-2"
+        key="tablet"
+        onClick={() => setMode("tablet")}
+        title={
+          <DeviceTabletIcon />
+        }
+      />
+      <Tab
+        className="px-2"
+        key="desktop"
+        onClick={() => setMode("desktop")}
+        title={
+          <DesktopIcon />
+        }
+      />
+    </Tabs>
+  );
+}
+
+function PanelsControls({ panelsMode, setPanelsMode }: { panelsMode: "none" | "left" | "right" | "both"; setPanelsMode: (m: "none" | "left" | "right" | "both") => void }) {
+  return (
+    <Tabs aria-label="Paneles" color="primary" variant="bordered" defaultSelectedKey={panelsMode}>
+      <Tab className="px-2" key="none" title={<span className="text-xs"><SquareIcon /></span>} onClick={() => setPanelsMode("none")} />
+      <Tab className="px-2" key="left" title={<span className="text-xs"><SquareHalfIcon weight="duotone" style={{ transform: "rotate(180deg)" }} /></span>} onClick={() => setPanelsMode("left")} />
+      <Tab className="px-2" key="right" title={<span className="text-xs"><SquareHalfIcon weight="duotone" /></span>} onClick={() => setPanelsMode("right")} />
+      <Tab className="px-2" key="both" title={<span className="text-xs"><SquareIcon weight="fill" /></span>} onClick={() => setPanelsMode("both")} />
+    </Tabs>
   );
 }
 
 function EditorLayoutInner() {
   const { id } = useParams();
   const { state, actions } = useEditor();
-  const { setHeaderRightSlot } = useOutletContext<LayoutOutletContext>();
+  const { setHeaderRightSlot, setWidthToFullViewport } = useOutletContext<LayoutOutletContext>();
   const site = state.site;
   const page = site?.pages.find((p) => p.id === state.selectedPageId) ?? site?.pages[0];
   const selectedComponent = page && state.selectedComponentPath.length > 0
     ? (getByPath(page, state.selectedComponentPath) as Component | undefined)
     : undefined;
 
-  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(true);
+  const isPreviewFullscreen = true;
   const [previewMode, setPreviewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [showAddPageModal, setShowAddPageModal] = useState(false);
   const [newPageType, setNewPageType] = useState<"landing-page" | "articles" | "ecommerce">("landing-page");
-  const [panelsHoverCount, setPanelsHoverCount] = useState(0);
+  const [panelsMode, setPanelsMode] = useState<"none" | "left" | "right" | "both">("both");
 
   useEffect(() => {
     if (id) actions.loadSite(id);
@@ -87,9 +119,20 @@ function EditorLayoutInner() {
 
   useEffect(() => {
     // Inject header controls on mount and update
-    setHeaderRightSlot(<PreviewControls mode={previewMode} setMode={setPreviewMode} />);
+    setHeaderRightSlot(
+      <div className="flex items-center gap-2">
+        <PreviewControls mode={previewMode} setMode={setPreviewMode} />
+        <PanelsControls panelsMode={panelsMode} setPanelsMode={setPanelsMode} />
+      </div>
+    );
     return () => setHeaderRightSlot(undefined);
-  }, [previewMode, setHeaderRightSlot]);
+  }, [previewMode, panelsMode, setHeaderRightSlot]);
+
+  // For editor, expand layout to full viewport width
+  useEffect(() => {
+    setWidthToFullViewport(true);
+    return () => setWidthToFullViewport(false);
+  }, [setWidthToFullViewport]);
 
   if (state.loading) return <div className="p-4">Cargando…</div>;
   if (state.error) return <div className="p-4 text-danger">{state.error}</div>;
@@ -101,54 +144,54 @@ function EditorLayoutInner() {
     : previewMode === "tablet"
       ? "w-full max-w-[768px] mx-auto"
       : "max-w-none";
+  const leftVisible = panelsMode === "both" || panelsMode === "left";
+  const rightVisible = panelsMode === "both" || panelsMode === "right";
 
   return (
-    <div className="grid grid-cols-12 gap-4 p-4 min-h-screen">
+    <div className="grid grid-cols-12 gap-4 p-4">
       {/* Columna izquierda (pages + components) */}
       <div
-        className={
-          isPreviewFullscreen
-            ? `fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${panelsHoverCount > 0 ? "translate-x-0 bg-content1/70" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`
-            : "col-span-3 space-y-4"
-        }
-        onMouseEnter={() => isPreviewFullscreen && setPanelsHoverCount((c) => c + 1)}
-        onMouseLeave={() => isPreviewFullscreen && setPanelsHoverCount((c) => Math.max(0, c - 1))}
+        className={`fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${leftVisible ? "translate-x-0 bg-content1/70 border-r border-r-foreground/10" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
       >
-        <div className={(isPreviewFullscreen ? (panelsHoverCount > 0 ? "opacity-100 flex flex-col" : "opacity-0") : "opacity-100") + " transition-opacity duration-300"}>
+        <div className={(leftVisible ? "opacity-100 flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
           {/* Pages list */}
-          <Card className="shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden">
-            <CardHeader className="text-md font-bold">Páginas</CardHeader>
+          <Card className="bg-transparent shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden">
+            <CardHeader className="px-3 py-2 flex flex-row items-center justify-between">
+              <div className="font-semibold text-sm">Páginas</div>
+              <Button size="sm" color="primary" onPress={() => setShowAddPageModal(true)}>Añadir página</Button>
+            </CardHeader>
             <CardBody className="space-y-2 overflow-y-auto">
               {site.pages.length === 0 && (
                 <div className="opacity-70 text-sm">No hay páginas aún. Crea la primera para comenzar.</div>
               )}
-              {site.pages.map((pg) => {
+              {site.pages.map((pg, idx) => {
                 const isSelected = pg.id === state.selectedPageId;
                 return (
-                  <Card
-                    key={pg.id}
-                    isPressable
-                    onPress={() => actions.selectPage(pg.id)}
-                    className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none"}
-                  >
-                    <CardHeader className="flex justify-between items-center">
+                  <div key={pg.id}>
+                    <div
+                      onClick={() => actions.selectPage(pg.id)}
+                      className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
+                    >
                       <div>
                         <div className="font-semibold text-sm">{pg.title || pg.slug}</div>
                         <div className="text-xs opacity-70">/{pg.slug} · {pg.type}</div>
                       </div>
-                    </CardHeader>
-                  </Card>
+                    </div>
+                    {idx < site.pages.length - 1 && <Divider />}
+                  </div>
                 );
               })}
-              <div className="pt-2">
-                <Button size="sm" color="primary" onPress={() => setShowAddPageModal(true)}>Añadir página</Button>
-              </div>
             </CardBody>
           </Card>
 
+          <Divider />
+
           {/* Components tree (recursive) */}
-          <Card className="shadow-none mt-4 h-full max-h-[calc((100vh-64px)/2)] flex flex-col">
-            <CardHeader className="text-md font-bold">Componentes</CardHeader>
+          <Card className="bg-transparent shadow-none mt-4 h-full max-h-[calc((100vh-64px)/2)] flex flex-col">
+            <CardHeader className="px-3 py-2 flex flex-row items-center justify-between">
+              <div className="font-semibold text-sm">Componentes</div>
+              <Button size="sm" color="primary" isDisabled={!page} onPress={() => page && actions.addComponentToPage(page.id)}>Añadir componente</Button>
+            </CardHeader>
             <CardBody>
               {!page && (
                 <div className="opacity-70 text-sm">Selecciona o crea una página para añadir componentes.</div>
@@ -161,33 +204,26 @@ function EditorLayoutInner() {
                 const isSelected = pathsEqual(state.selectedComponentPath, currentPath);
                 return (
                   <div key={idx} className="mb-2">
-                    <Card
-                      isPressable
-                      onPress={() => actions.selectComponentPath(currentPath)}
-                      className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none"}
+                    <div
+                      onClick={() => actions.selectComponentPath(currentPath)}
+                      className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
                     >
-                      <CardHeader className="flex justify-between items-center">
-                        <div className="font-semibold text-sm">{c.name}</div>
-                      </CardHeader>
-                      <CardBody>
-                        <ComponentsRecursive obj={c} path={currentPath} />
-                      </CardBody>
-                    </Card>
+                      <div className="font-semibold text-sm">{c.name}</div>
+                    </div>
+                    <div className="mt-2">
+                      <ComponentsRecursive obj={c} path={currentPath} />
+                    </div>
+                    {idx < (page.components || []).length - 1 && <Divider className="my-2" />}
                   </div>
                 );
               })}
-              <div className="pt-2">
-                <Button size="sm" color="primary" isDisabled={!page} onPress={() => page && actions.addComponentToPage(page.id)}>
-                  Añadir componente
-                </Button>
-              </div>
             </CardBody>
           </Card>
         </div>
       </div>
 
       {/* Preview center */}
-      <div className={isPreviewFullscreen ? "fixed inset-x-0 top-16 bottom-0 z-20" : "col-span-6"}>
+      <div className={"fixed inset-x-0 top-16 bottom-0 z-20"}>
         <Card className={(isPreviewFullscreen ? "h-full" : "h-[600px]") + " bg-foreground/10 shadow-none relative"}>
           {/* <CardHeader className="text-center">Preview</CardHeader> */}
           <CardBody>
@@ -200,18 +236,11 @@ function EditorLayoutInner() {
 
       {/* Right panels */}
       <div
-        className={
-          isPreviewFullscreen
-            ? `fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${panelsHoverCount > 0 ? "translate-x-0 bg-content1/70" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`
-            : "col-span-3 space-y-4"
-        }
-        onMouseEnter={() => isPreviewFullscreen && setPanelsHoverCount((c) => c + 1)}
-        onMouseLeave={() => isPreviewFullscreen && setPanelsHoverCount((c) => Math.max(0, c - 1))}
+        className={`fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${rightVisible ? "border-l border-l-foreground/10 translate-x-0 bg-content1/70" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
       >
-        <div className={(isPreviewFullscreen ? (panelsHoverCount > 0 ? "opacity-100" : "opacity-0") : "opacity-100") + " transition-opacity duration-300"}>
+        <div className={(rightVisible ? "opacity-100" : "opacity-0") + " transition-opacity duration-300"}>
           {/* Page properties (SEO) */}
-          <Card className={"shadow-none " + (isPreviewFullscreen ? "h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden" : "")}> 
-            <CardHeader className="text-md font-bold">Propiedades de página</CardHeader>
+          <Card className={"shadow-none bg-transparent h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden"}> 
             <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
               {!page ? (
                 <div className="opacity-70">Crea una página para ver y editar sus propiedades SEO.</div>
@@ -349,11 +378,10 @@ function EditorLayoutInner() {
             </CardBody>
           </Card>
 
-          {panelsHoverCount > 0 && <Divider className="my-0" />}
+          <Divider className="my-1" />
 
           {/* Component properties (focused) */}
-          <Card className={"shadow-none " + (isPreviewFullscreen ? "h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden" : "")}> 
-            <CardHeader className="text-md font-bold">Propiedades del componente</CardHeader>
+          <Card className={"bg-transparent shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden"}> 
             <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
               <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
               <pre className="text-xs bg-content1/50 p-2 rounded">

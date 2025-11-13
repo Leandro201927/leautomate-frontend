@@ -8,12 +8,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { siteConfig } from "@/config/site";
 import { ListIcon } from "@phosphor-icons/react";
 
-export const Header = ({ collapsedSidebar = false, rightSlot }: { collapsedSidebar?: boolean; rightSlot?: ReactNode }) => {
+export const Header = ({ collapsedSidebar = false, rightSlot, fullViewport = false }: { collapsedSidebar?: boolean; rightSlot?: ReactNode; fullViewport?: boolean }) => {
   const [currentPath, setCurrentPath] = useState("/");
 
   useEffect(() => {
     setCurrentPath(window.location.pathname);
   }, []);
+
+  console.log('viewport', fullViewport)
 
   const segments = currentPath.split("/").filter(Boolean);
   const crumbs: { label: string; href: string }[] = [{ label: "Home", href: "/" }];
@@ -26,7 +28,7 @@ export const Header = ({ collapsedSidebar = false, rightSlot }: { collapsedSideb
   });
 
   return (
-    <Navbar maxWidth="xl" position="sticky" isBordered>
+    <Navbar maxWidth={fullViewport ? "full" : "xl"} position="sticky" isBordered>
       {collapsedSidebar && (
         <NavbarContent className="basis-auto max-w-[30px]">
           <Dropdown>
