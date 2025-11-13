@@ -108,17 +108,17 @@ function EditorLayoutInner() {
       <div
         className={
           isPreviewFullscreen
-            ? `fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${panelsHoverCount > 0 ? "translate-x-0 bg-transparent" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-4 z-40 overflow-hidden`
+            ? `fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${panelsHoverCount > 0 ? "translate-x-0 bg-content1/70" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`
             : "col-span-3 space-y-4"
         }
         onMouseEnter={() => isPreviewFullscreen && setPanelsHoverCount((c) => c + 1)}
         onMouseLeave={() => isPreviewFullscreen && setPanelsHoverCount((c) => Math.max(0, c - 1))}
       >
-        <div className={(isPreviewFullscreen ? (panelsHoverCount > 0 ? "opacity-100" : "opacity-0") : "opacity-100") + " transition-opacity duration-300"}>
+        <div className={(isPreviewFullscreen ? (panelsHoverCount > 0 ? "opacity-100 flex flex-col" : "opacity-0") : "opacity-100") + " transition-opacity duration-300"}>
           {/* Pages list */}
-          <Card className="shadow-none">
+          <Card className="shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden">
             <CardHeader className="text-md font-bold">Páginas</CardHeader>
-            <CardBody className="space-y-2">
+            <CardBody className="space-y-2 overflow-y-auto">
               {site.pages.length === 0 && (
                 <div className="opacity-70 text-sm">No hay páginas aún. Crea la primera para comenzar.</div>
               )}
@@ -147,7 +147,7 @@ function EditorLayoutInner() {
           </Card>
 
           {/* Components tree (recursive) */}
-          <Card className="shadow-none mt-4">
+          <Card className="shadow-none mt-4 h-full max-h-[calc((100vh-64px)/2)] flex flex-col">
             <CardHeader className="text-md font-bold">Componentes</CardHeader>
             <CardBody>
               {!page && (
@@ -202,7 +202,7 @@ function EditorLayoutInner() {
       <div
         className={
           isPreviewFullscreen
-            ? `fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${panelsHoverCount > 0 ? "translate-x-0 bg-transparent" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-4 z-40 overflow-hidden`
+            ? `fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${panelsHoverCount > 0 ? "translate-x-0 bg-content1/70" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`
             : "col-span-3 space-y-4"
         }
         onMouseEnter={() => isPreviewFullscreen && setPanelsHoverCount((c) => c + 1)}
@@ -210,7 +210,7 @@ function EditorLayoutInner() {
       >
         <div className={(isPreviewFullscreen ? (panelsHoverCount > 0 ? "opacity-100" : "opacity-0") : "opacity-100") + " transition-opacity duration-300"}>
           {/* Page properties (SEO) */}
-          <Card className={"shadow-none " + (isPreviewFullscreen ? "max-h-[calc((100vh-64px)/2)] flex flex-col" : "")}> 
+          <Card className={"shadow-none " + (isPreviewFullscreen ? "h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden" : "")}> 
             <CardHeader className="text-md font-bold">Propiedades de página</CardHeader>
             <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
               {!page ? (
@@ -349,8 +349,10 @@ function EditorLayoutInner() {
             </CardBody>
           </Card>
 
+          {panelsHoverCount > 0 && <Divider className="my-0" />}
+
           {/* Component properties (focused) */}
-          <Card className={"shadow-none mt-4 " + (isPreviewFullscreen ? "max-h-[calc((100vh-64px)/2)] flex flex-col" : "")}> 
+          <Card className={"shadow-none " + (isPreviewFullscreen ? "h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden" : "")}> 
             <CardHeader className="text-md font-bold">Propiedades del componente</CardHeader>
             <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
               <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
