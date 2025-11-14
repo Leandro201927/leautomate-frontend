@@ -2,6 +2,8 @@ export type Component = {
   name: string;
   atomic_hierarchy: "atom" | "molecule" | "organism" | "template" | "page";
   custom_attrs?: Record<string, unknown>;
+  // Typography per-component override (optional)
+  typography_override?: Partial<TypographyScale>;
   seo?: {
     // JSON-LD basic structure
     "@context"?: "https://schema.org";
@@ -63,6 +65,29 @@ export type Page = {
   word_count: number;
   keyword_focus: string[];
   Components: Component[];
+  // Typography per-page override (optional)
+  typography_override?: Partial<TypographyScale>;
+};
+
+// Typography token for a specific element (e.g., h1, p, span)
+export type TypographyToken = {
+  font_family: string; // Google Font family name
+  weight?: number; // font-weight (100-900)
+  size_px: number; // font-size in px
+  letter_spacing_px?: number; // letter-spacing in px
+  line_height_percent?: number; // line-height as percentage (e.g., 120)
+};
+
+// Typography scale for supported elements
+export type TypographyScale = {
+  h1: TypographyToken;
+  h2: TypographyToken;
+  h3: TypographyToken;
+  h4: TypographyToken;
+  h5: TypographyToken;
+  h6: TypographyToken;
+  p: TypographyToken;
+  span: TypographyToken;
 };
 
 export type ClientWebsite = {
@@ -73,4 +98,9 @@ export type ClientWebsite = {
     custom_header_elements?: string;
   } | null;
   pages: Page[];
+  // Global typography tokens and loaded font families
+  typography?: {
+    global: TypographyScale;
+    loaded_fonts?: string[]; // track loaded families for preview/runtime injection
+  };
 };

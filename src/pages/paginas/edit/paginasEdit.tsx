@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
-import { Card, CardBody, Button, Divider, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs } from "@heroui/react";
+import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs, Accordion, AccordionItem } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
-import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon } from "@phosphor-icons/react";
+import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon } from "@phosphor-icons/react";
 import AddComponentDialog from "./components/AddComponentDialog";
+import TypographyPanel from "./components/TypographyPanel";
+import type { TypographyScale } from "@/types/clientWebsite";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -38,7 +40,7 @@ function ComponentsRecursive({ obj, path = [] }: { obj: any; path?: string[] }) 
             <div className="mt-2">
               <ComponentsRecursive obj={child} path={currentPath} />
             </div>
-            {idx < childKeys.length - 1 && <Divider className="my-2" />}
+            {/* Espaciado entre elementos del árbol */}
           </div>
         );
       })}
@@ -149,6 +151,19 @@ function EditorLayoutInner() {
   const leftVisible = panelsMode === "both" || panelsMode === "left";
   const rightVisible = panelsMode === "both" || panelsMode === "right";
 
+  function mergeTokens(base: TypographyScale, override?: Partial<TypographyScale>): TypographyScale {
+    return {
+      h1: { ...base.h1, ...(override?.h1 ?? {}) },
+      h2: { ...base.h2, ...(override?.h2 ?? {}) },
+      h3: { ...base.h3, ...(override?.h3 ?? {}) },
+      h4: { ...base.h4, ...(override?.h4 ?? {}) },
+      h5: { ...base.h5, ...(override?.h5 ?? {}) },
+      h6: { ...base.h6, ...(override?.h6 ?? {}) },
+      p: { ...base.p, ...(override?.p ?? {}) },
+      span: { ...base.span, ...(override?.span ?? {}) },
+    };
+  }
+
   return (
     <div className="grid grid-cols-12 gap-4 p-4">
       {/* Columna izquierda (pages + components) */}
@@ -156,21 +171,29 @@ function EditorLayoutInner() {
         className={`fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${leftVisible ? "translate-x-0 bg-content1/70 border-r border-r-foreground/10" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
       >
         <div className={(leftVisible ? "opacity-100 flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
-          {/* Pages list */}
-          <Card className="bg-transparent shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden">
-            <CardHeader className="px-3 py-2 flex flex-row items-center justify-between">
-              <div className="font-semibold text-sm">Páginas</div>
-              <Button size="sm" color="primary" onPress={() => setShowAddPageModal(true)}>Añadir página</Button>
-            </CardHeader>
-            <CardBody className="space-y-2 overflow-y-auto">
-              {site.pages.length === 0 && (
-                <div className="opacity-70 text-sm">No hay páginas aún. Crea la primera para comenzar.</div>
-              )}
-              {site.pages.map((pg, idx) => {
-                const isSelected = pg.id === state.selectedPageId;
-                return (
-                  <div key={pg.id}>
-                    <div
+          <Accordion variant="bordered" selectionMode="multiple" defaultExpandedKeys={[]} className="shadow-none">
+            <AccordionItem
+              key="pages"
+              aria-label="Páginas"
+              indicator={<FilesIcon />}
+              className="shadow-none"
+              title={
+                <div className="flex items-center justify-between w-full">
+                  <span>Páginas</span>
+                  <Button isIconOnly size="sm" variant="light" onPress={() => setShowAddPageModal(true)} aria-label="Añadir página">
+                    <PlusIcon />
+                  </Button>
+                </div>
+              }
+            >
+              <div className="space-y-2 overflow-y-auto">
+                {site.pages.length === 0 && (
+                  <div className="opacity-70 text-sm">No hay páginas aún. Crea la primera para comenzar.</div>
+                )}
+                {site.pages.map((pg) => {
+                  const isSelected = pg.id === state.selectedPageId;
+                  return (
+                    <div key={pg.id}
                       onClick={() => actions.selectPage(pg.id)}
                       className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
                     >
@@ -179,22 +202,24 @@ function EditorLayoutInner() {
                         <div className="text-xs opacity-70">/{pg.slug} · {pg.type}</div>
                       </div>
                     </div>
-                    {idx < site.pages.length - 1 && <Divider />}
-                  </div>
-                );
-              })}
-            </CardBody>
-          </Card>
-
-          <Divider />
-
-          {/* Components tree (recursive) */}
-          <Card className="bg-transparent shadow-none mt-4 h-full max-h-[calc((100vh-64px)/2)] flex flex-col">
-            <CardHeader className="px-3 py-2 flex flex-row items-center justify-between">
-              <div className="font-semibold text-sm">Componentes</div>
-              <Button size="sm" color="primary" isDisabled={!page} onPress={() => setShowAddComponentDialog(true)}>Añadir componente</Button>
-            </CardHeader>
-            <CardBody>
+                  );
+                })}
+              </div>
+            </AccordionItem>
+            <AccordionItem
+              key="components"
+              aria-label="Componentes"
+              indicator={<PuzzlePieceIcon />}
+              className="shadow-none"
+              title={
+                <div className="flex items-center justify-between w-full">
+                  <span>Componentes</span>
+                  <Button isIconOnly size="sm" variant="light" isDisabled={!page} onPress={() => setShowAddComponentDialog(true)} aria-label="Añadir componente">
+                    <PlusIcon />
+                  </Button>
+                </div>
+              }
+            >
               {!page && (
                 <div className="opacity-70 text-sm">Selecciona o crea una página para añadir componentes.</div>
               )}
@@ -215,12 +240,11 @@ function EditorLayoutInner() {
                     <div className="mt-2">
                       <ComponentsRecursive obj={c} path={currentPath} />
                     </div>
-                    {idx < (page.components || []).length - 1 && <Divider className="my-2" />}
                   </div>
                 );
               })}
-            </CardBody>
-          </Card>
+            </AccordionItem>
+          </Accordion>
         </div>
       </div>
 
@@ -241,13 +265,23 @@ function EditorLayoutInner() {
         className={`fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${rightVisible ? "border-l border-l-foreground/10 translate-x-0 bg-content1/70" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
       >
         <div className={(rightVisible ? "opacity-100" : "opacity-0") + " transition-opacity duration-300"}>
-          {/* Page properties (SEO) */}
-          <Card className={"shadow-none bg-transparent h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden"}> 
-            <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
+          <Accordion variant="bordered" selectionMode="multiple" defaultExpandedKeys={[]} className="shadow-none">
+            {site.typography && (
+              <AccordionItem key="typo" aria-label="Tipografía Global" indicator={<TextTIcon />} title="Tipografía Global" className="shadow-none">
+                <TypographyPanel
+                  scope="global"
+                  tokens={site.typography.global}
+                  onChange={(tag, patch) => actions.updateGlobalTypographyToken(tag, patch)}
+                  onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
+                />
+              </AccordionItem>
+            )}
+
+            <AccordionItem key="page" aria-label="Propiedades de Página" indicator={<FilesIcon />} title="Propiedades de Página" className="shadow-none">
               {!page ? (
                 <div className="opacity-70">Crea una página para ver y editar sus propiedades SEO.</div>
               ) : (
-                <>
+                <div className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
                   <Input
                     label="title"
                     value={page.title}
@@ -284,7 +318,15 @@ function EditorLayoutInner() {
                     onValueChange={(v) => actions.updatePage(page.id, { keyword_focus: v.split(",").map((s) => s.trim()).filter(Boolean) })}
                   />
 
-                  <Divider />
+                  {/* Page Typography override */}
+                  {site.typography && (
+                    <TypographyPanel
+                      scope="page"
+                      tokens={mergeTokens(site.typography.global, page.typography_override)}
+                      onChange={(tag, patch) => actions.updatePageTypographyToken(page.id, tag, patch)}
+                      onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
+                    />
+                  )}
                   <div className="font-semibold">Robots</div>
                   <div className="flex gap-4 items-center">
                     <Switch isSelected={!!page.noindex} onValueChange={(val) => actions.updatePage(page.id, { noindex: !!val })}>noindex</Switch>
@@ -296,26 +338,22 @@ function EditorLayoutInner() {
                     onValueChange={(v) => actions.updatePage(page.id, { robots_extra: v })}
                   />
 
-                  <Divider />
                   <div className="font-semibold">Fechas</div>
                   <Input label="published_at" value={page.published_at} onValueChange={(v) => actions.updatePage(page.id, { published_at: v })} />
                   <Input label="modified_at" value={page.modified_at} onValueChange={(v) => actions.updatePage(page.id, { modified_at: v })} />
 
-                  <Divider />
                   <div className="font-semibold">Autor</div>
                   <Input label="author.name" value={page.author?.name ?? ""} onValueChange={(v) => actions.updatePage(page.id, { author: { ...page.author, name: v } })} />
                   <Input label="author.url" value={page.author?.url ?? ""} onValueChange={(v) => actions.updatePage(page.id, { author: { ...page.author, url: v } })} />
                   <Input label="author.id" value={page.author?.id ?? ""} onValueChange={(v) => actions.updatePage(page.id, { author: { ...page.author, id: v } })} />
                   <Input type="number" label="reading_time (min)" value={String(page.reading_time ?? 0)} onValueChange={(v) => actions.updatePage(page.id, { reading_time: Number(v) || 0 })} />
 
-                  <Divider />
                   <div className="font-semibold">Featured Image</div>
                   <Input label="featured_image.src" value={page.featured_image?.src ?? ""} onValueChange={(v) => actions.updatePage(page.id, { featured_image: { ...page.featured_image, src: v } })} />
                   <Input label="featured_image.alt" value={page.featured_image?.alt ?? ""} onValueChange={(v) => actions.updatePage(page.id, { featured_image: { ...page.featured_image, alt: v } })} />
                   <Input type="number" label="featured_image.width" value={String(page.featured_image?.width ?? 0)} onValueChange={(v) => actions.updatePage(page.id, { featured_image: { ...page.featured_image, width: Number(v) || 0 } })} />
                   <Input type="number" label="featured_image.height" value={String(page.featured_image?.height ?? 0)} onValueChange={(v) => actions.updatePage(page.id, { featured_image: { ...page.featured_image, height: Number(v) || 0 } })} />
 
-                  <Divider />
                   <div className="font-semibold">Open Graph</div>
                   <Input label="open_graph.og_title" value={page.open_graph?.og_title ?? ""} onValueChange={(v) => actions.updatePage(page.id, { open_graph: { ...page.open_graph, og_title: v } })} />
                   <Textarea label="open_graph.og_description" value={page.open_graph?.og_description ?? ""} onValueChange={(v) => actions.updatePage(page.id, { open_graph: { ...page.open_graph, og_description: v } })} />
@@ -324,7 +362,6 @@ function EditorLayoutInner() {
                   <Input label="open_graph.og_image.src" value={page.open_graph?.og_image?.src ?? ""} onValueChange={(v) => actions.updatePage(page.id, { open_graph: { ...page.open_graph, og_image: { ...page.open_graph?.og_image, src: v } } })} />
                   <Input label="open_graph.og_image.alt" value={page.open_graph?.og_image?.alt ?? ""} onValueChange={(v) => actions.updatePage(page.id, { open_graph: { ...page.open_graph, og_image: { ...page.open_graph?.og_image, alt: v } } })} />
 
-                  <Divider />
                   <div className="font-semibold">Hreflang alternates</div>
                   <Textarea
                     label="lang|url; lang|url"
@@ -338,7 +375,6 @@ function EditorLayoutInner() {
                     }}
                   />
 
-                  <Divider />
                   <div className="font-semibold">Breadcrumbs</div>
                   <Textarea
                     label="name|url; name|url"
@@ -352,18 +388,15 @@ function EditorLayoutInner() {
                     }}
                   />
 
-                  <Divider />
                   <div className="font-semibold">Sitemap</div>
                   <Input type="number" label="sitemap.priority" value={String(page.sitemap?.priority ?? 0.5)} onValueChange={(v) => actions.updatePage(page.id, { sitemap: { ...page.sitemap, priority: Number(v) || 0 } })} />
                   <Input label="sitemap.changefreq" value={page.sitemap?.changefreq ?? ""} onValueChange={(v) => actions.updatePage(page.id, { sitemap: { ...page.sitemap, changefreq: v } })} />
 
-                  <Divider />
                   <div className="font-semibold">Redirects</div>
                   <Textarea label="redirect_from (coma-separadas)" value={(page.redirect_from || []).join(", ")}
                     onValueChange={(v) => actions.updatePage(page.id, { redirect_from: v.split(",").map(s => s.trim()).filter(Boolean) })}
                   />
 
-                  <Divider />
                   <div className="font-semibold">Schema.org (JSON)</div>
                   <Textarea
                     label="schema_org"
@@ -377,47 +410,53 @@ function EditorLayoutInner() {
                     onValueChange={() => { /* evitamos actualizar hasta blur para no romper while typing */ }}
                   />
 
-                  <Divider />
                   <Input label="content_text_summary" value={page.content_text_summary ?? ""} onValueChange={(v) => actions.updatePage(page.id, { content_text_summary: v })} />
                   <Input type="number" label="word_count" value={String(page.word_count ?? 0)} onValueChange={(v) => actions.updatePage(page.id, { word_count: Number(v) || 0 })} />
-                </>
+                </div>
               )}
-            </CardBody>
-          </Card>
+            </AccordionItem>
 
-          <Divider className="my-1" />
-
-          {/* Component properties (focused) */}
-          <Card className={"bg-transparent shadow-none h-[calc((100vh-64px)/2)] flex flex-col overflow-hidden"}> 
-            <CardBody className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
-              <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
-              <pre className="text-xs bg-content1/50 p-2 rounded">
+            <AccordionItem key="component" aria-label="Propiedades de Componente" indicator={<PuzzlePieceIcon />} title="Propiedades de Componente" className="shadow-none">
+              <div className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
+                <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
+                <pre className="text-xs bg-content1/50 p-2 rounded">
 {JSON.stringify({ "@context": "https://schema.org", "@type": "Thing" }, null, 2)}
-              </pre>
-              <Divider />
-              {selectedComponent ? (
-                <div>
-                  <div className="font-semibold mb-1">custom_attrs</div>
-                  <div className="space-y-1">
-                    {Object.entries(selectedComponent.custom_attrs ?? {}).length === 0 ? (
-                      <div className="opacity-70">Sin atributos personalizados.</div>
-                    ) : (
-                      Object.entries(selectedComponent.custom_attrs as Record<string, unknown>).map(([k, v]) => (
-                        <Input
-                          key={k}
-                          label={k}
-                          value={String(v ?? "")}
-                          onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: val })}
-                        />
-                      ))
+                </pre>
+                {selectedComponent ? (
+                  <div>
+                    <div className="font-semibold mb-1">custom_attrs</div>
+                    <div className="space-y-1">
+                      {Object.entries(selectedComponent.custom_attrs ?? {}).length === 0 ? (
+                        <div className="opacity-70">Sin atributos personalizados.</div>
+                      ) : (
+                        Object.entries(selectedComponent.custom_attrs as Record<string, unknown>).map(([k, v]) => (
+                          <Input
+                            key={k}
+                            label={k}
+                            value={String(v ?? "")}
+                            onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: val })}
+                          />
+                        ))
+                      )}
+                    </div>
+                    {site.typography && (
+                      <TypographyPanel
+                        scope="component"
+                        tokens={mergeTokens(
+                          mergeTokens(site.typography.global, page!.typography_override),
+                          selectedComponent.typography_override
+                        )}
+                        onChange={(tag, patch) => actions.updateComponentTypographyToken(page!.id, state.selectedComponentPath, tag, patch)}
+                        onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
+                      />
                     )}
                   </div>
-                </div>
-              ) : (
-                <div className="opacity-70">Selecciona un componente para ver sus atributos.</div>
-              )}
-            </CardBody>
-          </Card>
+                ) : (
+                  <div className="opacity-70">Selecciona un componente para ver sus atributos.</div>
+                )}
+              </div>
+            </AccordionItem>
+          </Accordion>
         </div>
       </div>
 

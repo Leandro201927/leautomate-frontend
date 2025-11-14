@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
-import type { ClientWebsite, Page, Component } from "@/types/clientWebsite";
+import type { ClientWebsite, Page, Component, TypographyScale, TypographyToken } from "@/types/clientWebsite";
+import { ensureFontLoaded } from "@/services/fontsService";
 import { getClientWebsite } from "@/services/clientWebsites";
 
 type EditorState = {
@@ -19,6 +20,16 @@ type EditorActions = {
   addPage: (type: Page["type"]) => void;
   addComponentToPage: (pageId: string) => void;
   addComponentToPageFromLibrary: (pageId: string, component: Component) => void;
+  // Typography actions
+  updateGlobalTypographyToken: (tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
+  updatePageTypographyToken: (pageId: string, tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
+  updateComponentTypographyToken: (
+    pageId: string,
+    path: string[],
+    tag: keyof TypographyScale,
+    patch: Partial<TypographyToken>
+  ) => void;
+  loadGoogleFontFamily: (family: string) => Promise<void>;
 };
 
 const EditorContext = createContext<{ state: EditorState; actions: EditorActions } | undefined>(
@@ -44,7 +55,22 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setState((s) => ({ ...s, loading: false, error: "No se pudo cargar el sitio" }));
           return;
         }
-        setState({ site, selectedPageId: site.pages?.[0]?.id ?? null, selectedComponentPath: [], loading: false });
+        // Initialize default typography if missing
+        const defaultScale: TypographyScale = {
+          h1: { font_family: "Inter", weight: 700, size_px: 36, line_height_percent: 120 },
+          h2: { font_family: "Inter", weight: 600, size_px: 30, line_height_percent: 120 },
+          h3: { font_family: "Inter", weight: 600, size_px: 24, line_height_percent: 120 },
+          h4: { font_family: "Inter", weight: 500, size_px: 20, line_height_percent: 120 },
+          h5: { font_family: "Inter", weight: 500, size_px: 18, line_height_percent: 120 },
+          h6: { font_family: "Inter", weight: 500, size_px: 16, line_height_percent: 120 },
+          p: { font_family: "Inter", weight: 400, size_px: 16, line_height_percent: 140 },
+          span: { font_family: "Inter", weight: 400, size_px: 14, line_height_percent: 120 },
+        };
+        const siteWithTypography: ClientWebsite = {
+          ...site,
+          typography: site.typography ?? { global: defaultScale, loaded_fonts: ["Inter"] },
+        };
+        setState({ site: siteWithTypography, selectedPageId: site.pages?.[0]?.id ?? null, selectedComponentPath: [], loading: false });
       },
       selectPage(pageId) {
         setState((s) => ({ ...s, selectedPageId: pageId, selectedComponentPath: [] }));
@@ -146,6 +172,91 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const pages = s.site.pages.slice();
           pages[pageIndex] = updatedPage;
           return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      updateGlobalTypographyToken(tag, patch) {
+        setState((s) => {
+          if (!s.site?.typography) return s;
+          const current = s.site.typography.global[tag];
+          const updated: TypographyToken = { ...current, ...patch };
+          return {
+            ...s,
+            site: {
+              ...s.site,
+              typography: {
+                ...s.site.typography,
+                global: { ...s.site.typography.global, [tag]: updated },
+              },
+            },
+          };
+        });
+      },
+      updatePageTypographyToken(pageId, tag, patch) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pages = s.site.pages.map((p) => {
+            if (p.id !== pageId) return p;
+            const override = p.typography_override ?? {};
+            const current = override[tag] ?? s.site!.typography!.global[tag];
+            const updated: TypographyToken = { ...current, ...patch };
+            return { ...p, typography_override: { ...override, [tag]: updated } };
+          });
+        
+          return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      updateComponentTypographyToken(pageId, path, tag, patch) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pageIndex = s.site.pages.findIndex((p) => p.id === pageId);
+          if (pageIndex === -1) return s;
+          const page = s.site.pages[pageIndex];
+          const newPage = { ...page };
+
+          // Navigate path through nested keys to find target component
+          let target: any = newPage;
+          for (const key of path) {
+            if (target && key in target) target = (target as any)[key];
+          }
+          if (target && typeof target === "object") {
+            const comp = target as Component;
+            const override = comp.typography_override ?? {};
+            const current = (override as any)[tag] ?? s.site!.typography!.global[tag];
+            const updated: TypographyToken = { ...current, ...patch };
+            comp.typography_override = { ...override, [tag]: updated } as Partial<TypographyScale>;
+          }
+
+          const pages = s.site.pages.slice();
+          pages[pageIndex] = newPage;
+          return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      async loadGoogleFontFamily(family) {
+        // Load common weights to avoid flashes when switching
+        await ensureFontLoaded(family, [400, 500, 600, 700]);
+        setState((s) => {
+          if (!s.site) return s;
+          const loaded = new Set([...(s.site.typography?.loaded_fonts ?? [])]);
+          loaded.add(family);
+          return {
+            ...s,
+            site: {
+              ...s.site,
+              typography: {
+                global: s.site.typography?.global ?? {
+                  h1: { font_family: family, weight: 700, size_px: 36 },
+                  h2: { font_family: family, weight: 600, size_px: 30 },
+                  h3: { font_family: family, weight: 600, size_px: 24 },
+                  h4: { font_family: family, weight: 500, size_px: 20 },
+                  h5: { font_family: family, weight: 500, size_px: 18 },
+                  h6: { font_family: family, weight: 500, size_px: 16 },
+                  p: { font_family: family, weight: 400, size_px: 16 },
+                  span: { font_family: family, weight: 400, size_px: 14 },
+                },
+                loaded_fonts: Array.from(loaded),
+              },
+            },
+          };
         });
       },
     }),
