@@ -8,6 +8,7 @@ import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfI
 import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
+import PreviewWebpageEngine from "./components/PreviewWebpageEngine";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -164,6 +165,25 @@ function EditorLayoutInner() {
     };
   }
 
+  // Normaliza tokens globales asegurando que existan p y span
+  const globalTokensForPanel: TypographyScale | undefined = site?.typography
+    ? {
+        ...site.typography.global,
+        p: site.typography.global.p ?? {
+          font_family: site.typography.global.h6.font_family,
+          weight: 400,
+          size_px: 16,
+          line_height_percent: 140,
+        },
+        span: site.typography.global.span ?? {
+          font_family: site.typography.global.h6.font_family,
+          weight: 400,
+          size_px: 14,
+          line_height_percent: 120,
+        },
+      }
+    : undefined;
+
   return (
     <div className="grid grid-cols-12 gap-4 p-4">
       {/* Columna izquierda (pages + components) */}
@@ -254,7 +274,7 @@ function EditorLayoutInner() {
           {/* <CardHeader className="text-center">Preview</CardHeader> */}
           <CardBody>
             <div className={previewWidthClass + " h-full border border-dashed border-foreground/10 bg-background"}>
-              {/* Aquí irá el iframe o el render del template en el modo elegido */}
+              <PreviewWebpageEngine page={page ?? null} />
             </div>
           </CardBody>
         </Card>
@@ -270,7 +290,7 @@ function EditorLayoutInner() {
               <AccordionItem key="typo" aria-label="Tipografía Global" indicator={<TextTIcon />} title="Tipografía Global" className="shadow-none">
                 <TypographyPanel
                   scope="global"
-                  tokens={site.typography.global}
+                  tokens={globalTokensForPanel!}
                   onChange={(tag, patch) => actions.updateGlobalTypographyToken(tag, patch)}
                   onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
                 />
