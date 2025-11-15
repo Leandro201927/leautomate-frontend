@@ -4,7 +4,7 @@ import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
 import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs, Accordion, AccordionItem } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
-import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon } from "@phosphor-icons/react";
+import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, SwapIcon } from "@phosphor-icons/react";
 import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
@@ -118,11 +118,11 @@ function EditorLayoutInner() {
   const [newPageType, setNewPageType] = useState<"landing-page" | "articles" | "ecommerce">("landing-page");
   const [panelsMode, setPanelsMode] = useState<"none" | "left" | "right" | "both">("both");
   const [showAddComponentDialog, setShowAddComponentDialog] = useState(false);
+  const [selectSubComponentSlotKey, setSelectSubComponentSlotKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   async function handleSave() {
-    console.log('handling save', site)
     if (!site) return;
     try {
       setSaving(true);
@@ -155,7 +155,7 @@ function EditorLayoutInner() {
       <div className="flex items-center gap-2">
         <PreviewControls mode={previewMode} setMode={setPreviewMode} />
         <PanelsControls panelsMode={panelsMode} setPanelsMode={setPanelsMode} />
-        <Button color="primary" size="sm" isLoading={saving} onPress={handleSave}>
+        <Button color="primary" isLoading={saving} onPress={handleSave}>
           Guardar
         </Button>
         {saveMessage && (
@@ -250,9 +250,21 @@ function EditorLayoutInner() {
                       onClick={() => actions.selectPage(pg.id)}
                       className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
                     >
-                      <div>
-                        <div className="font-semibold text-sm">{pg.title || pg.slug}</div>
-                        <div className="text-xs opacity-70">/{pg.slug} · {pg.type}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-sm">{pg.title || pg.slug}</div>
+                          <div className="text-xs opacity-70">/{pg.slug} · {pg.type}</div>
+                        </div>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          aria-label="Eliminar página"
+                          onPress={(e) => { (e as any).stopPropagation?.(); actions.deletePage(pg.id); }}
+                        >
+                          <TrashIcon />
+                        </Button>
                       </div>
                     </div>
                   );
@@ -288,7 +300,19 @@ function EditorLayoutInner() {
                       onClick={() => actions.selectComponentPath(currentPath)}
                       className={(isSelected ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
                     >
-                      <div className="font-semibold text-sm">{c.name}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold text-sm">{c.name}</div>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          color="danger"
+                          aria-label="Eliminar componente"
+                          onPress={(e) => { (e as any).stopPropagation?.(); actions.deleteComponentFromPage(page.id, idx); }}
+                        >
+                          <TrashIcon />
+                        </Button>
+                      </div>
                     </div>
                     <div className="mt-2">
                       <ComponentsRecursive obj={c} path={currentPath} />
@@ -321,12 +345,14 @@ function EditorLayoutInner() {
           <Accordion variant="bordered" selectionMode="multiple" defaultExpandedKeys={[]} className="shadow-none">
             {site.typography && (
               <AccordionItem key="typo" aria-label="Tipografía Global" indicator={<TextTIcon />} title="Tipografía Global" className="shadow-none">
-                <TypographyPanel
-                  scope="global"
-                  tokens={globalTokensForPanel!}
-                  onChange={(tag, patch) => actions.updateGlobalTypographyToken(tag, patch)}
-                  onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
-                />
+                <div style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+                  <TypographyPanel
+                    scope="global"
+                    tokens={globalTokensForPanel!}
+                    onChange={(tag, patch) => actions.updateGlobalTypographyToken(tag, patch)}
+                    onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
+                  />
+                </div>
               </AccordionItem>
             )}
 
@@ -334,7 +360,7 @@ function EditorLayoutInner() {
               {!page ? (
                 <div className="opacity-70">Crea una página para ver y editar sus propiedades SEO.</div>
               ) : (
-                <div className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
+                <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}> 
                   <Input
                     label="title"
                     value={page.title}
@@ -470,11 +496,26 @@ function EditorLayoutInner() {
             </AccordionItem>
 
             <AccordionItem key="component" aria-label="Propiedades de Componente" indicator={<PuzzlePieceIcon />} title="Propiedades de Componente" className="shadow-none">
-              <div className={"space-y-2 text-sm " + (isPreviewFullscreen ? "overflow-y-auto" : "")}> 
+              <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}> 
                 <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
-                <pre className="text-xs bg-content1/50 p-2 rounded">
-{JSON.stringify({ "@context": "https://schema.org", "@type": "Thing" }, null, 2)}
-                </pre>
+                {selectedComponent ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      label="seo (JSON-LD)"
+                      value={JSON.stringify(selectedComponent.seo ?? { "@context": "https://schema.org", "@type": "Thing" }, null, 2)}
+                      onBlur={(e) => {
+                        try {
+                          const json = JSON.parse(e.target.value || "{}");
+                          actions.updateComponentSeo(page!.id, state.selectedComponentPath, json);
+                        } catch {}
+                      }}
+                      onValueChange={() => { /* guardamos en blur para evitar incoherencias mientras se tipea */ }}
+                    />
+                    <Button color="danger" variant="light" onPress={() => actions.updateComponentSeo(page!.id, state.selectedComponentPath, null)}>Eliminar JSON-LD</Button>
+                  </div>
+                ) : (
+                  <div className="opacity-70">Selecciona un componente para editar su JSON-LD.</div>
+                )}
                 {selectedComponent ? (
                   <div>
                     <div className="font-semibold mb-1">custom_attrs</div>
@@ -482,14 +523,44 @@ function EditorLayoutInner() {
                       {Object.entries(selectedComponent.custom_attrs ?? {}).length === 0 ? (
                         <div className="opacity-70">Sin atributos personalizados.</div>
                       ) : (
-                        Object.entries(selectedComponent.custom_attrs as Record<string, unknown>).map(([k, v]) => (
-                          <Input
-                            key={k}
-                            label={k}
-                            value={String(v ?? "")}
-                            onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: val })}
-                          />
-                        ))
+                        Object.entries(selectedComponent.custom_attrs as Record<string, unknown>).map(([k, v]) => {
+                          const isComponentSlot = k.includes("_component");
+                          if (isComponentSlot) {
+                            const child = (v || undefined) as any;
+                            const hasChild = child && typeof child === "object" && "name" in child;
+                            return (
+                              <div key={k} className="p-2 rounded bg-content1/50">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-semibold">{k}</div>
+                                  <div className="flex items-center gap-2">
+                                    <Button className="px-0 min-w-[32px]" size="sm" variant="light" onPress={() => setSelectSubComponentSlotKey(k)}>{hasChild ? <SwapIcon /> : "Seleccionar"}</Button>
+                                    {hasChild && (
+                                      <Button className="px-0 min-w-[32px]" size="sm" variant="light" color="danger" onPress={() => actions.setNestedComponentSlot(page!.id, state.selectedComponentPath, k, null)}><TrashIcon /></Button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-xs">
+                                  {hasChild ? (
+                                    <div>
+                                      <div className="font-semibold">{(child as Component).name}</div>
+                                      <div className="opacity-70">atomic: {(child as Component).atomic_hierarchy}</div>
+                                    </div>
+                                  ) : (
+                                    <div className="opacity-70">Sin componente seleccionado en este slot.</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <Input
+                              key={k}
+                              label={k}
+                              value={String(v ?? "")}
+                              onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: val })}
+                            />
+                          );
+                        })
                       )}
                     </div>
                     {site.typography && (
@@ -544,6 +615,16 @@ function EditorLayoutInner() {
         onSelect={(comp) => {
           if (!page) return;
           actions.addComponentToPageFromLibrary(page.id, comp);
+        }}
+      />
+      {/* Diálogo para seleccionar/reemplazar subcomponente dentro de custom_attrs */}
+      <AddComponentDialog
+        isOpen={!!selectSubComponentSlotKey}
+        onOpenChange={(open) => { if (!open) setSelectSubComponentSlotKey(null); }}
+        onSelect={(comp) => {
+          if (!page || !selectSubComponentSlotKey) return;
+          actions.setNestedComponentSlot(page.id, state.selectedComponentPath, selectSubComponentSlotKey, comp);
+          setSelectSubComponentSlotKey(null);
         }}
       />
     </div>

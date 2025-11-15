@@ -159,7 +159,7 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
       <style>{css}</style>
       <div className="space-y-4">
         {components.length === 0 && (
-          <div className="opacity-70 text-sm">Esta página no tiene componentes aún.</div>
+          <div className="opacity-70 text-sm text-center">Esta página no tiene componentes aún.</div>
         )}
         {components.map((c: ClientComponent, idx: number) => (
           <div key={idx} className="">

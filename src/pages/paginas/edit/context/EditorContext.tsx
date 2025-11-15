@@ -20,6 +20,10 @@ type EditorActions = {
   addPage: (type: Page["type"]) => void;
   addComponentToPage: (pageId: string) => void;
   addComponentToPageFromLibrary: (pageId: string, component: Component) => void;
+  deletePage: (pageId: string) => void;
+  deleteComponentFromPage: (pageId: string, index: number) => void;
+  updateComponentSeo: (pageId: string, path: string[], seo: Record<string, unknown> | null) => void;
+  setNestedComponentSlot: (pageId: string, path: string[], slotKey: string, component: Component | null) => void;
   // Typography actions
   updateGlobalTypographyToken: (tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
   updatePageTypographyToken: (pageId: string, tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
@@ -139,7 +143,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             content_text_summary: "",
             word_count: 0,
             keyword_focus: [],
-            Components: [],
           };
           const pages = [...s.site.pages, newPage];
           return { ...s, site: { ...s.site, pages }, selectedPageId: newId };
@@ -171,6 +174,89 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const updatedPage: Page = { ...page, components: [...(page.components || []), component] };
           const pages = s.site.pages.slice();
           pages[pageIndex] = updatedPage;
+          return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      deletePage(pageId) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pages = (s.site.pages || []).filter((p) => p.id !== pageId);
+          const newSelected = s.selectedPageId === pageId ? (pages[0]?.id ?? null) : s.selectedPageId;
+          return { ...s, site: { ...s.site, pages }, selectedPageId: newSelected, selectedComponentPath: [] };
+        });
+      },
+      deleteComponentFromPage(pageId, index) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pageIndex = s.site.pages.findIndex((p) => p.id === pageId);
+          if (pageIndex === -1) return s;
+          const page = s.site.pages[pageIndex];
+          const comps = page.components || [];
+          if (index < 0 || index >= comps.length) return s;
+          const newComponents = comps.filter((_, i) => i !== index);
+          const updatedPage: Page = { ...page, components: newComponents };
+          const pages = s.site.pages.slice();
+          pages[pageIndex] = updatedPage;
+          return { ...s, site: { ...s.site, pages }, selectedComponentPath: [] };
+        });
+      },
+      updateComponentSeo(pageId, path, seo) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pageIndex = s.site.pages.findIndex((p) => p.id === pageId);
+          if (pageIndex === -1) return s;
+          const page = s.site.pages[pageIndex];
+          const newPage = { ...page };
+
+          let target: any = newPage;
+          for (const key of path) {
+            if (target && key in target) target = (target as any)[key];
+          }
+          if (target && typeof target === "object") {
+            const comp = target as Component;
+            if (seo && Object.keys(seo).length > 0) {
+              comp.seo = { ...seo } as any;
+            } else {
+              delete (comp as any).seo;
+            }
+          }
+
+          const pages = s.site.pages.slice();
+          pages[pageIndex] = newPage;
+          return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      setNestedComponentSlot(pageId, path, slotKey, component) {
+        setState((s) => {
+          if (!s.site) return s;
+          const pageIndex = s.site.pages.findIndex((p) => p.id === pageId);
+          if (pageIndex === -1) return s;
+          const page = s.site.pages[pageIndex];
+          const newPage = { ...page };
+
+          let target: any = newPage;
+          for (const key of path) {
+            if (target && key in target) target = (target as any)[key];
+          }
+          if (target && typeof target === "object") {
+            // ensure custom_attrs exists
+            const curAttrs = (target as Component).custom_attrs ?? {};
+            const newAttrs = { ...curAttrs } as Record<string, unknown>;
+            if (component) {
+              newAttrs[slotKey] = component;
+            } else {
+              // keep the slot present but empty so it stays manageable in UI
+              newAttrs[slotKey] = null;
+            }
+            (target as Component).custom_attrs = newAttrs;
+            // if the slot accidentally existed at root, remove it to avoid duplication
+            if (slotKey in (target as any)) {
+              try { delete (target as any)[slotKey]; } catch {}
+            }
+          }
+
+          const pages = s.site.pages.slice();
+          pages[pageIndex] = newPage;
           return { ...s, site: { ...s.site, pages } };
         });
       },

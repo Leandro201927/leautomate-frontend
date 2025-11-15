@@ -64,7 +64,6 @@ export type Page = {
   content_text_summary: string;
   word_count: number;
   keyword_focus: string[];
-  Components: Component[];
   // Typography per-page override (optional)
   typography_override?: Partial<TypographyScale>;
 };
