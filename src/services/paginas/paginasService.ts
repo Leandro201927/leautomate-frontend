@@ -27,6 +27,13 @@ export interface CreateClientWebsitePayload {
   pages?: unknown; // JSON complejo opcional
 }
 
+export interface UpdateClientWebsitePayload {
+  name?: string;
+  can_change_fields_on_bd?: boolean;
+  global_header?: GlobalHeader | null;
+  pages?: unknown; // JSON complejo opcional
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -75,9 +82,18 @@ export async function getClientWebsiteById(id: string): Promise<ClientWebsite> {
   return request<ClientWebsite>(`/api/client-websites/${encodeURIComponent(id)}`);
 }
 
+// PUT /api/client-websites/:id
+export async function updateClientWebsite(id: string, payload: UpdateClientWebsitePayload): Promise<ClientWebsite> {
+  return request<ClientWebsite>(`/api/client-websites/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export default {
   getHealth,
   listClientWebsites,
   createClientWebsite,
   getClientWebsiteById,
+  updateClientWebsite,
 };

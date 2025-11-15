@@ -9,6 +9,7 @@ import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
 import PreviewWebpageEngine from "./components/PreviewWebpageEngine";
+import { updateClientWebsite } from "@/services/paginas/paginasService";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -117,6 +118,32 @@ function EditorLayoutInner() {
   const [newPageType, setNewPageType] = useState<"landing-page" | "articles" | "ecommerce">("landing-page");
   const [panelsMode, setPanelsMode] = useState<"none" | "left" | "right" | "both">("both");
   const [showAddComponentDialog, setShowAddComponentDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  async function handleSave() {
+    console.log('handling save', site)
+    if (!site) return;
+    try {
+      setSaving(true);
+      const updated = await updateClientWebsite(site.id, {
+        name: site.name,
+        can_change_fields_on_bd: !!site.can_change_fields_on_bd,
+        global_header: site.global_header ?? null,
+        pages: site.pages,
+      });
+      setSaveMessage("Guardado");
+      // refrescar el sitio desde backend para reflejar updated_at y normalizaciones
+      actions.loadSite(site.id);
+      setTimeout(() => setSaveMessage(null), 2000);
+    } catch (e) {
+      console.error("Error guardando sitio:", e);
+      setSaveMessage("Error al guardar");
+      setTimeout(() => setSaveMessage(null), 2500);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (id) actions.loadSite(id);
@@ -128,10 +155,16 @@ function EditorLayoutInner() {
       <div className="flex items-center gap-2">
         <PreviewControls mode={previewMode} setMode={setPreviewMode} />
         <PanelsControls panelsMode={panelsMode} setPanelsMode={setPanelsMode} />
+        <Button color="primary" size="sm" isLoading={saving} onPress={handleSave}>
+          Guardar
+        </Button>
+        {saveMessage && (
+          <span className={saveMessage.includes("Error") ? "text-danger text-xs" : "text-success text-xs"}>{saveMessage}</span>
+        )}
       </div>
     );
     return () => setHeaderRightSlot(undefined);
-  }, [previewMode, panelsMode, setHeaderRightSlot]);
+  }, [previewMode, panelsMode, saving, saveMessage, site, setHeaderRightSlot]);
 
   // For editor, expand layout to full viewport width
   useEffect(() => {
