@@ -22,10 +22,32 @@ type LibraryItem = {
   load: (() => Promise<any>) | null;
 };
 
-function flattenCustomAttrs(attrs?: Record<string, { type: string; value: unknown }>): Record<string, unknown> {
+function flattenCustomAttrsResolveColors(
+  attrs: Record<string, any> | undefined,
+  colors: Record<string, string>
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   Object.entries(attrs || {}).forEach(([k, v]) => {
-    out[k] = v?.value;
+    const t = v && typeof v === "object" && "type" in v ? v.type : undefined;
+    const val = v && typeof v === "object" && "value" in v ? v.value : v;
+    if (t === "color") {
+      if (typeof val === "string") {
+        if (val.startsWith("var:")) {
+          const name = val.slice(4);
+          out[k] = colors[name] ?? val;
+        } else if (val.startsWith("var(--")) {
+          const name = val.replace(/^var\(--|\)$/g, "").replace(/\)$/, "");
+          out[k] = colors[name] ?? val;
+        } else {
+          out[k] = val; // hex u otra cadena
+        }
+      } else {
+        out[k] = val as unknown;
+      }
+    } else {
+      // para slots de componente, pasamos el valor tal cual (podría ser objeto componente)
+      out[k] = val as unknown;
+    }
   });
   return out;
 }
@@ -165,7 +187,7 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
           <div key={idx} className="">
             <ComponentRenderer
               name={c.name}
-              attrs={c.custom_attrs ?? {}}
+              attrs={flattenCustomAttrsResolveColors(c.custom_attrs as any, state.site?.design_tokens?.colors ?? {})}
               libraryByName={libraryByName}
             />
           </div>

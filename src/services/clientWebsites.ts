@@ -1,6 +1,7 @@
 import type { ClientWebsite } from "@/types/clientWebsite";
 
-const API_BASE = "http://localhost:4000";
+// Unificar base URL con el resto de servicios usando VITE_API_URL si existe
+const API_BASE = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000";
 
 export async function getClientWebsite(id: string): Promise<ClientWebsite | null> {
   try {
@@ -14,6 +15,7 @@ export async function getClientWebsite(id: string): Promise<ClientWebsite | null
       can_change_fields_on_bd: !!data.can_change_fields_on_bd,
       global_header: data.global_header ?? null,
       pages: data.pages ?? [],
+      design_tokens: data.design_tokens ?? undefined,
     } as ClientWebsite;
   } catch (e) {
     console.error("fetch client website error", e);

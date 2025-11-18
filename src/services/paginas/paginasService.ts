@@ -32,6 +32,7 @@ export interface UpdateClientWebsitePayload {
   can_change_fields_on_bd?: boolean;
   global_header?: GlobalHeader | null;
   pages?: unknown; // JSON complejo opcional
+  design_tokens?: unknown; // JSON opcional (paletas, etc.)
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

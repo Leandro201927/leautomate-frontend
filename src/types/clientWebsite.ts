@@ -1,7 +1,10 @@
+export type CustomAttrValue = { type: string; value: unknown };
+
 export type Component = {
   name: string;
   atomic_hierarchy: "atom" | "molecule" | "organism" | "template" | "page";
-  custom_attrs?: Record<string, unknown>;
+  // Component attributes are strongly typed objects: { type, value }
+  custom_attrs?: Record<string, CustomAttrValue>;
   // Typography per-component override (optional)
   typography_override?: Partial<TypographyScale>;
   seo?: {
@@ -101,5 +104,9 @@ export type ClientWebsite = {
   typography?: {
     global: TypographyScale;
     loaded_fonts?: string[]; // track loaded families for preview/runtime injection
+  };
+  // Global design tokens (colors for now)
+  design_tokens?: {
+    colors: Record<string, string>; // e.g., { primary: "#8b5cf6", background: "#ffffff" }
   };
 };

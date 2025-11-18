@@ -82,7 +82,7 @@ export default function AddComponentDialog({ isOpen, onOpenChange, onSelect }: {
   }, [items, query, typeFilter]);
 
   function handleSelect(item: Item) {
-    const custom_attrs = flattenCustomAttrs(item.sample?.custom_attrs ?? item.manifest?.custom_attrs);
+    const custom_attrs = (item.sample?.custom_attrs ?? item.manifest?.custom_attrs ?? {}) as Record<string, { type: string; value: unknown }>;
     const component: Component = {
       name: item.name,
       atomic_hierarchy: item.atomicHierarchy,

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
-import type { ClientWebsite, Page, Component, TypographyScale, TypographyToken } from "@/types/clientWebsite";
+import type { ClientWebsite, Page, Component, TypographyScale, TypographyToken, CustomAttrValue } from "@/types/clientWebsite";
 import { ensureFontLoaded } from "@/services/fontsService";
 import { getClientWebsite } from "@/services/clientWebsites";
 
@@ -16,7 +16,7 @@ type EditorActions = {
   selectPage: (pageId: string | null) => void;
   selectComponentPath: (path: string[]) => void;
   updatePage: (pageId: string, patch: Partial<Page>) => void;
-  updateComponentAttrs: (pageId: string, path: string[], patch: Record<string, unknown>) => void;
+  updateComponentAttrs: (pageId: string, path: string[], patch: Record<string, CustomAttrValue>) => void;
   addPage: (type: Page["type"]) => void;
   addComponentToPage: (pageId: string) => void;
   addComponentToPageFromLibrary: (pageId: string, component: Component) => void;
@@ -34,6 +34,10 @@ type EditorActions = {
     patch: Partial<TypographyToken>
   ) => void;
   loadGoogleFontFamily: (family: string) => Promise<void>;
+  // Design tokens (colors)
+  addDesignColorToken: (name: string, value: string) => void;
+  updateDesignColorToken: (name: string, value: string) => void;
+  removeDesignColorToken: (name: string) => void;
 };
 
 const EditorContext = createContext<{ state: EditorState; actions: EditorActions } | undefined>(
@@ -59,6 +63,35 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setState((s) => ({ ...s, loading: false, error: "No se pudo cargar el sitio" }));
           return;
         }
+        // Normalización: convierte custom_attrs antiguos (valores planos) a { type, value }
+        function normalizeAttrValue(key: string, raw: any): CustomAttrValue {
+          if (raw && typeof raw === "object" && "type" in raw && "value" in raw) return raw as CustomAttrValue;
+          if (raw && typeof raw === "object" && "name" in raw) {
+            const nested = normalizeComponent(raw as Component);
+            return { type: "component", value: nested };
+          }
+          if (key.includes("component")) {
+            return { type: "component", value: raw ?? null };
+          }
+          if (key.includes("color")) {
+            if (typeof raw === "string") return { type: "color", value: raw };
+            return { type: "color", value: "#000000" };
+          }
+          if (typeof raw === "number") return { type: "number", value: raw };
+          return { type: "string", value: raw ?? "" };
+        }
+        function normalizeComponent(comp: Component): Component {
+          const current = comp.custom_attrs ?? {};
+          const normalized: Record<string, CustomAttrValue> = {};
+          Object.entries(current).forEach(([k, v]) => {
+            normalized[k] = normalizeAttrValue(k, v);
+          });
+          return { ...comp, custom_attrs: normalized };
+        }
+        const normalizedPages: Page[] = (site.pages as Page[] || []).map((p) => {
+          const comps = (p.components || []).map((c) => normalizeComponent(c));
+          return { ...p, components: comps };
+        });
         // Initialize default typography if missing
         const defaultScale: TypographyScale = {
           h1: { font_family: "Inter", weight: 700, size_px: 36, line_height_percent: 120 },
@@ -70,11 +103,19 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           p: { font_family: "Inter", weight: 400, size_px: 16, line_height_percent: 140 },
           span: { font_family: "Inter", weight: 400, size_px: 14, line_height_percent: 120 },
         };
+        const defaultColors = {
+          primary: "#8b5cf6",
+          secondary: "#06b6d4",
+          background: "#ffffff",
+          foreground: "#111827",
+        };
         const siteWithTypography: ClientWebsite = {
           ...site,
+          pages: normalizedPages,
           typography: site.typography ?? { global: defaultScale, loaded_fonts: ["Inter"] },
+          design_tokens: site.design_tokens ?? { colors: defaultColors },
         };
-        setState({ site: siteWithTypography, selectedPageId: site.pages?.[0]?.id ?? null, selectedComponentPath: [], loading: false });
+        setState({ site: siteWithTypography, selectedPageId: (normalizedPages[0]?.id ?? site.pages?.[0]?.id ?? null), selectedComponentPath: [], loading: false });
       },
       selectPage(pageId) {
         setState((s) => ({ ...s, selectedPageId: pageId, selectedComponentPath: [] }));
@@ -241,12 +282,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (target && typeof target === "object") {
             // ensure custom_attrs exists
             const curAttrs = (target as Component).custom_attrs ?? {};
-            const newAttrs = { ...curAttrs } as Record<string, unknown>;
+            const newAttrs = { ...curAttrs } as Record<string, CustomAttrValue>;
             if (component) {
-              newAttrs[slotKey] = component;
+              newAttrs[slotKey] = { type: "component", value: component };
             } else {
-              // keep the slot present but empty so it stays manageable in UI
-              newAttrs[slotKey] = null;
+              // keep the slot present but visible in UI
+              newAttrs[slotKey] = { type: "component", value: null };
             }
             (target as Component).custom_attrs = newAttrs;
             // if the slot accidentally existed at root, remove it to avoid duplication
@@ -343,6 +384,31 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               },
             },
           };
+        });
+      },
+      addDesignColorToken(name, value) {
+        setState((s) => {
+          if (!s.site) return s;
+          const colors = { ...(s.site.design_tokens?.colors ?? {}) };
+          colors[name] = value;
+          return { ...s, site: { ...s.site, design_tokens: { colors } } };
+        });
+      },
+      updateDesignColorToken(name, value) {
+        setState((s) => {
+          if (!s.site) return s;
+          const colors = { ...(s.site.design_tokens?.colors ?? {}) };
+          if (!(name in colors)) return s;
+          colors[name] = value;
+          return { ...s, site: { ...s.site, design_tokens: { colors } } };
+        });
+      },
+      removeDesignColorToken(name) {
+        setState((s) => {
+          if (!s.site) return s;
+          const colors = { ...(s.site.design_tokens?.colors ?? {}) };
+          delete colors[name];
+          return { ...s, site: { ...s.site, design_tokens: { colors } } };
         });
       },
     }),

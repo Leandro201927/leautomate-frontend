@@ -15,6 +15,10 @@ export const manifest = {
             "type": "string",
             "value": ""
         },
+         "color_background": {
+            "type": "color",
+            "value": "var(--color-background)" // might be: "#ffffff (hex)" too.
+        },
         "hero_left_section_component": {
             "type": "component",
             "value": null
@@ -38,6 +42,10 @@ export const sample = {
         "description": {
             "type": "string",
             "value": "A hero section with a horizontal layout, featuring a title, description, and an optional left section component."
+        },
+        "color_background": {
+            "type": "color",
+            "value": "var(--color-background)" // might be: "#ffffff (hex)" too.
         },
         "hero_left_section_component": {
             "type": "component",

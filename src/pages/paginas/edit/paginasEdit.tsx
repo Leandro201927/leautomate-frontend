@@ -121,6 +121,8 @@ function EditorLayoutInner() {
   const [selectSubComponentSlotKey, setSelectSubComponentSlotKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [newColorName, setNewColorName] = useState("");
+  const [newColorValue, setNewColorValue] = useState("#000000");
 
   async function handleSave() {
     if (!site) return;
@@ -131,6 +133,10 @@ function EditorLayoutInner() {
         can_change_fields_on_bd: !!site.can_change_fields_on_bd,
         global_header: site.global_header ?? null,
         pages: site.pages,
+        // incluir design_tokens para persistir paleta de colores
+        // el servicio acepta campos arbitrarios; añadimos este JSON
+        // en el backend lo guardamos como JSON
+        design_tokens: site.design_tokens ?? null,
       });
       setSaveMessage("Guardado");
       // refrescar el sitio desde backend para reflejar updated_at y normalizaciones
@@ -269,6 +275,41 @@ function EditorLayoutInner() {
                     </div>
                   );
                 })}
+              </div>
+            </AccordionItem>
+
+            <AccordionItem key="colors" aria-label="Colores del sitio" indicator={<SquareHalfIcon />} title="Colores del sitio" className="shadow-none">
+              <div className="space-y-3 text-sm" style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+                <div className="opacity-70">Gestiona variables de color globales.</div>
+                <div className="space-y-2">
+                  {Object.entries(site.design_tokens?.colors ?? {}).map(([name, value]) => (
+                    <div key={name} className="flex items-center gap-3 p-2 rounded bg-content1/50">
+                      <div className="w-[160px] text-xs font-semibold truncate">{name}</div>
+                      <input
+                        aria-label={`Color ${name}`}
+                        type="color"
+                        value={typeof value === "string" ? value : "#000000"}
+                        onChange={(e) => actions.updateDesignColorToken(name, e.target.value)}
+                      />
+                      <Button size="sm" variant="light" color="danger" onPress={() => actions.removeDesignColorToken(name)}>
+                        <TrashIcon />
+                      </Button>
+                    </div>
+                  ))}
+                  {Object.keys(site.design_tokens?.colors ?? {}).length === 0 && (
+                    <div className="opacity-70">No hay colores definidos aún.</div>
+                  )}
+                </div>
+                <div className="border-t border-foreground/10 pt-3 space-y-2">
+                  <div className="font-semibold">Añadir color</div>
+                  <div className="flex items-center gap-3">
+                    <Input size="sm" label="Nombre" placeholder="ej: primary" value={newColorName} onValueChange={setNewColorName} />
+                    <input aria-label="Nuevo color" type="color" value={newColorValue} onChange={(e) => setNewColorValue(e.target.value)} />
+                    <Button size="sm" color="primary" onPress={() => { if (newColorName.trim()) { actions.addDesignColorToken(newColorName.trim(), newColorValue); setNewColorName(""); } }}>
+                      Añadir
+                    </Button>
+                  </div>
+                </div>
               </div>
             </AccordionItem>
             <AccordionItem
@@ -519,14 +560,17 @@ function EditorLayoutInner() {
                 {selectedComponent ? (
                   <div>
                     <div className="font-semibold mb-1">custom_attrs</div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {Object.entries(selectedComponent.custom_attrs ?? {}).length === 0 ? (
                         <div className="opacity-70">Sin atributos personalizados.</div>
                       ) : (
-                        Object.entries(selectedComponent.custom_attrs as Record<string, unknown>).map(([k, v]) => {
-                          const isComponentSlot = k.includes("_component");
-                          if (isComponentSlot) {
-                            const child = (v || undefined) as any;
+                        Object.entries(selectedComponent.custom_attrs as Record<string, any>).map(([k, v]) => {
+                          const valType = (v && typeof v === "object" && "type" in v) ? (v as any).type : undefined;
+                          const valValue = (v && typeof v === "object" && "value" in v) ? (v as any).value : v;
+                          // componente anidado
+                          const looksLikeLegacyComponent = !valType && valValue && typeof valValue === "object" && "name" in (valValue as any);
+                          if (valType === "component" || looksLikeLegacyComponent) {
+                            const child = (valValue || undefined) as any;
                             const hasChild = child && typeof child === "object" && "name" in child;
                             return (
                               <div key={k} className="p-2 rounded bg-content1/50">
@@ -552,12 +596,58 @@ function EditorLayoutInner() {
                               </div>
                             );
                           }
+                          // color: permitir variable o personalizado
+                          if (valType === "color") {
+                            const colors = site.design_tokens?.colors ?? {};
+                            const isVarRef = typeof valValue === "string" && (valValue.startsWith("var:") || valValue.startsWith("var(--"));
+                            const currentVarName = isVarRef ? (valValue.startsWith("var:") ? String(valValue).slice(4) : String(valValue).replace(/^var\(--|\)$/g, "").replace(/\)$/, "")) : "";
+                            const currentHex = !isVarRef && typeof valValue === "string" ? valValue : "#000000";
+                            return (
+                              <div key={k} className="p-2 rounded bg-content1/50 space-y-2">
+                                <div className="text-xs font-semibold">{k}</div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-xs">Variable</label>
+                                  <select
+                                    className="text-sm border rounded px-2 py-1 bg-content1"
+                                    value={isVarRef ? currentVarName : ""}
+                                    onChange={(e) => {
+                                      const name = e.target.value;
+                                      if (name) {
+                                        actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: `var:${name}` } });
+                                      } else {
+                                        actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: currentHex } });
+                                      }
+                                    }}
+                                  >
+                                    <option value="">— sin variable —</option>
+                                    {Object.keys(colors).map((n) => (
+                                      <option key={n} value={n}>{n}</option>
+                                    ))}
+                                  </select>
+                                  <label className="text-xs">Personalizado</label>
+                                  <input
+                                    aria-label={`Color personalizado ${k}`}
+                                    type="color"
+                                    className="cursor-pointer"
+                                    style={{ width: 28, height: 28 }}
+                                    value={currentHex}
+                                    onClick={(e) => { (e as any).stopPropagation?.(); }}
+                                    onChange={(e) => {
+                                      // Al elegir un color personalizado, forzamos a no usar variable
+                                      actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: e.target.value } });
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+                          // por defecto: input de texto
                           return (
                             <Input
                               key={k}
                               label={k}
-                              value={String(v ?? "")}
-                              onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: val })}
+                              value={String(valValue ?? "")}
+                              onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: typeof valValue === "number" ? "number" : "string", value: val } as any })}
                             />
                           );
                         })
