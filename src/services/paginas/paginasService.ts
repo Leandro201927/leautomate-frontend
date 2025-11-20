@@ -98,3 +98,29 @@ export default {
   getClientWebsiteById,
   updateClientWebsite,
 };
+
+export interface CloudflareCredentialsPayload {
+  client_website_id: string;
+  account_id: string;
+  api_token: string;
+  supabase_url?: string;
+  supabase_anon_key?: string;
+}
+
+export async function saveCloudflareCredentials(payload: CloudflareCredentialsPayload): Promise<{ ok: boolean; id?: string }> {
+  return request<{ ok: boolean; id?: string }>(`/api/cloudflare/credentials`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getCloudflareCredentials(clientWebsiteId: string): Promise<any> {
+  return request<any>(`/api/cloudflare/credentials/${encodeURIComponent(clientWebsiteId)}`);
+}
+
+export async function exportClientWebsite(id: string, creds?: Partial<CloudflareCredentialsPayload>): Promise<{ ok: boolean; output_dir: string; pages_exported: number; components_copied: number }> {
+  return request<{ ok: boolean; output_dir: string; pages_exported: number; components_copied: number }>(`/api/client-websites/${encodeURIComponent(id)}/export`, {
+    method: "POST",
+    body: JSON.stringify(creds ?? {}),
+  });
+}

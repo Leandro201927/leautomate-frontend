@@ -9,7 +9,7 @@ import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
 import PreviewWebpageEngine from "./components/PreviewWebpageEngine";
-import { updateClientWebsite } from "@/services/paginas/paginasService";
+import { updateClientWebsite, saveCloudflareCredentials, exportClientWebsite, getCloudflareCredentials } from "@/services/paginas/paginasService";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -123,6 +123,14 @@ function EditorLayoutInner() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [newColorName, setNewColorName] = useState("");
   const [newColorValue, setNewColorValue] = useState("#000000");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [cfAccountId, setCfAccountId] = useState("");
+  const [cfApiToken, setCfApiToken] = useState("");
+  const [supabaseUrl, setSupabaseUrl] = useState("");
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [loadingCreds, setLoadingCreds] = useState(false);
 
   async function handleSave() {
     if (!site) return;
@@ -164,13 +172,32 @@ function EditorLayoutInner() {
         <Button color="primary" isLoading={saving} onPress={handleSave}>
           Guardar
         </Button>
+        <Button variant="bordered" isLoading={exporting} onPress={() => setShowExportModal(true)}>Exportar</Button>
         {saveMessage && (
           <span className={saveMessage.includes("Error") ? "text-danger text-xs" : "text-success text-xs"}>{saveMessage}</span>
+        )}
+        {exportMessage && (
+          <span className={exportMessage.includes("Error") ? "text-danger text-xs" : "text-success text-xs"}>{exportMessage}</span>
         )}
       </div>
     );
     return () => setHeaderRightSlot(undefined);
   }, [previewMode, panelsMode, saving, saveMessage, site, setHeaderRightSlot]);
+
+  useEffect(() => {
+    if (showExportModal && site) {
+      setLoadingCreds(true);
+      getCloudflareCredentials(site.id)
+        .then((c) => {
+          setCfAccountId(String(c.account_id || ""));
+          setCfApiToken(String(c.api_token || ""));
+          setSupabaseUrl(String(c.supabase_url || ""));
+          setSupabaseAnonKey(String(c.supabase_anon_key || ""));
+        })
+        .catch(() => {})
+        .finally(() => setLoadingCreds(false));
+    }
+  }, [showExportModal, site]);
 
   // For editor, expand layout to full viewport width
   useEffect(() => {
@@ -692,6 +719,45 @@ function EditorLayoutInner() {
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>Cancelar</Button>
                 <Button color="primary" onPress={() => { actions.addPage(newPageType); onClose(); }}>Crear</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={showExportModal} onOpenChange={setShowExportModal}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">Exportar</ModalHeader>
+              <ModalBody>
+                <div className="space-y-3">
+                  <div className="font-semibold text-sm">Cloudflare</div>
+                  <Input isDisabled={loadingCreds} label="account_id" value={cfAccountId} onValueChange={setCfAccountId} />
+                  <Input isDisabled={loadingCreds} label="api_token" type="password" value={cfApiToken} onValueChange={setCfApiToken} />
+                  <div className="font-semibold text-sm">Supabase</div>
+                  <Input isDisabled={loadingCreds} label="supabase_url" value={supabaseUrl} onValueChange={setSupabaseUrl} />
+                  <Input isDisabled={loadingCreds} label="supabase_anon_key" type="password" value={supabaseAnonKey} onValueChange={setSupabaseAnonKey} />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>Cancelar</Button>
+                <Button color="primary" isLoading={exporting} onPress={async () => {
+                  if (!site) return;
+                  try {
+                    setExporting(true);
+                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined });
+                    const res = await exportClientWebsite(site.id);
+                    setExportMessage(`OK (${res.pages_exported} páginas, ${res.components_copied} componentes)`);
+                    onClose();
+                    setTimeout(() => setExportMessage(null), 3000);
+                  } catch (e: any) {
+                    setExportMessage(String(e?.message || e || 'Error'));
+                    setTimeout(() => setExportMessage(null), 4000);
+                  } finally {
+                    setExporting(false);
+                  }
+                }}>Exportar</Button>
               </ModalFooter>
             </>
           )}
