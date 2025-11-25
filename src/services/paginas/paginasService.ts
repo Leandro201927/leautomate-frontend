@@ -105,6 +105,8 @@ export interface CloudflareCredentialsPayload {
   api_token: string;
   supabase_url?: string;
   supabase_anon_key?: string;
+  pages_project?: string;
+  pages_build_hook?: string;
 }
 
 export async function saveCloudflareCredentials(payload: CloudflareCredentialsPayload): Promise<{ ok: boolean; id?: string }> {

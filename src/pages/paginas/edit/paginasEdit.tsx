@@ -126,6 +126,8 @@ function EditorLayoutInner() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [cfAccountId, setCfAccountId] = useState("");
   const [cfApiToken, setCfApiToken] = useState("");
+  const [pagesProject, setPagesProject] = useState("");
+  const [pagesBuildHook, setPagesBuildHook] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -191,6 +193,8 @@ function EditorLayoutInner() {
         .then((c) => {
           setCfAccountId(String(c.account_id || ""));
           setCfApiToken(String(c.api_token || ""));
+          setPagesProject(String(c.pages_project || ""));
+          setPagesBuildHook(String(c.pages_build_hook || ""));
           setSupabaseUrl(String(c.supabase_url || ""));
           setSupabaseAnonKey(String(c.supabase_anon_key || ""));
         })
@@ -734,10 +738,12 @@ function EditorLayoutInner() {
                 <div className="space-y-3">
                   <div className="font-semibold text-sm">Cloudflare</div>
                   <Input isDisabled={loadingCreds} label="account_id" value={cfAccountId} onValueChange={setCfAccountId} />
-                  <Input isDisabled={loadingCreds} label="api_token" type="password" value={cfApiToken} onValueChange={setCfApiToken} />
+                  <Input isDisabled={loadingCreds} label="api_token" type="text" value={cfApiToken} onValueChange={setCfApiToken} />
+                  <Input isDisabled={loadingCreds} label="pages_project" value={pagesProject} onValueChange={setPagesProject} />
+                  <Input isDisabled={loadingCreds} label="pages_build_hook" value={pagesBuildHook} onValueChange={setPagesBuildHook} />
                   <div className="font-semibold text-sm">Supabase</div>
                   <Input isDisabled={loadingCreds} label="supabase_url" value={supabaseUrl} onValueChange={setSupabaseUrl} />
-                  <Input isDisabled={loadingCreds} label="supabase_anon_key" type="password" value={supabaseAnonKey} onValueChange={setSupabaseAnonKey} />
+                  <Input isDisabled={loadingCreds} label="supabase_anon_key" type="text" value={supabaseAnonKey} onValueChange={setSupabaseAnonKey} />
                 </div>
               </ModalBody>
               <ModalFooter>
@@ -746,7 +752,7 @@ function EditorLayoutInner() {
                   if (!site) return;
                   try {
                     setExporting(true);
-                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined });
+                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined, pages_project: pagesProject.trim() || undefined, pages_build_hook: pagesBuildHook.trim() || undefined });
                     const res = await exportClientWebsite(site.id);
                     setExportMessage(`OK (${res.pages_exported} páginas, ${res.components_copied} componentes)`);
                     onClose();
