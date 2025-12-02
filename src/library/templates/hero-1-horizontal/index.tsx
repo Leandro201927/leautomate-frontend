@@ -9,10 +9,20 @@ export default function Hero1Horizontal(props: any) {
     if (props.hero_left_section_component) {
       const { atomic_hierarchy, name } = props.hero_left_section_component;
       const path = `${atomic_hierarchy}s/${name}`;
+      const attrs = props.hero_left_section_component.custom_attrs || {};
 
-      getComponentByPath(path, props.hero_left_section_component.custom_attrs).then(setLeftSection);
+      getComponentByPath(path, attrs).then((child) => {
+        if (!child) { setLeftSection(null); return; }
+        setLeftSection(
+          <div data-component-path={path} data-component-slot="hero_left_section_component">
+            {child}
+          </div>
+        );
+      });
+    } else {
+      setLeftSection(null);
     }
-  }, [props.hero_left_section_component]);
+  }, [props.hero_left_section_component, JSON.stringify(props.hero_left_section_component?.custom_attrs || {})]);
 
   return (
     <>

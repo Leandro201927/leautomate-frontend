@@ -124,6 +124,7 @@ function ComponentRenderer({ name, attrs, libraryByName }: { name: string; attrs
 
 export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
   const { state, actions } = useEditor();
+  const [selectedSubEl, setSelectedSubEl] = useState<HTMLElement | null>(null);
 
   const dataModules = import.meta.glob("/src/library/**/data.ts", { eager: true });
   const componentModules = useMemo(() => ({
@@ -168,7 +169,18 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fontsUsed.join("|"), state.site?.typography?.loaded_fonts]);
 
-  const css = useMemo(() => tokensToCss(pageTokens), [pageTokens]);
+  const css = useMemo(() => {
+    const base = tokensToCss(pageTokens);
+    const extra = `
+    .comp-wrap { position: relative; }
+    .comp-wrap.active { outline: 2px solid #171717; outline-offset: -2px; z-index: 10; }
+    .comp-wrap:not(.active):hover { outline: 1px dashed #a3a3a3; outline-offset: -1px; cursor: pointer; }
+    [data-component-path] { position: relative; }
+    [data-component-path]:not(.selected-sub):hover { outline: 1px dashed #a3a3a3; outline-offset: -1px; cursor: pointer; }
+    .selected-sub { outline: 2px solid #171717; outline-offset: -2px; z-index: 10; }
+    `;
+    return `${base}\n${extra}`;
+  }, [pageTokens]);
 
   if (!page) {
     return <div className="p-4 opacity-70 text-sm">Selecciona o crea una página para previsualizar.</div>;
@@ -179,19 +191,45 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
   return (
     <div className="preview-engine w-full h-full">
       <style>{css}</style>
-      <div className="space-y-4">
+      <div
+        className="space-y-4"
+        onClick={(e) => {
+          const t = e.target as HTMLElement;
+          const wrap = t.closest('.comp-wrap') as HTMLElement | null;
+          if (!wrap) return;
+          const idxStr = wrap.getAttribute('data-top-index');
+          const idx = idxStr ? Number(idxStr) : NaN;
+          if (Number.isNaN(idx)) return;
+          const slotEl = t.closest('[data-component-path]') as HTMLElement | null;
+          if (slotEl) {
+            const slot = slotEl.getAttribute('data-component-slot');
+            if (slot) {
+              if (selectedSubEl && selectedSubEl !== slotEl) selectedSubEl.classList.remove('selected-sub');
+              slotEl.classList.add('selected-sub');
+              setSelectedSubEl(slotEl);
+              actions.selectComponentPath(["components", String(idx), "custom_attrs", slot, "value"]);
+            }
+          } else {
+            if (selectedSubEl) { selectedSubEl.classList.remove('selected-sub'); setSelectedSubEl(null); }
+            actions.selectComponentPath(["components", String(idx)]);
+          }
+        }}
+      >
         {components.length === 0 && (
           <div className="opacity-70 text-sm text-center">Esta página no tiene componentes aún.</div>
         )}
-        {components.map((c: ClientComponent, idx: number) => (
-          <div key={idx} className="">
-            <ComponentRenderer
-              name={c.name}
-              attrs={flattenCustomAttrsResolveColors(c.custom_attrs as any, state.site?.design_tokens?.colors ?? {})}
-              libraryByName={libraryByName}
-            />
-          </div>
-        ))}
+        {components.map((c: ClientComponent, idx: number) => {
+          const isTopSelected = state.selectedComponentPath[0] === "components" && state.selectedComponentPath[1] === String(idx) && state.selectedComponentPath.length === 2;
+          return (
+            <div key={idx} className={`comp-wrap ${isTopSelected ? "active" : ""}`} data-top-index={idx}>
+              <ComponentRenderer
+                name={c.name}
+                attrs={flattenCustomAttrsResolveColors(c.custom_attrs as any, state.site?.design_tokens?.colors ?? {})}
+                libraryByName={libraryByName}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
