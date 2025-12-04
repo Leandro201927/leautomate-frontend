@@ -58,6 +58,12 @@ export type Page = {
     og_image: FeaturedImage;
     og_type: "article" | "website" | "product";
     twitter_card: "summary" | "summary_large_image";
+    og_url?: string;
+    og_site_name?: string;
+    og_locale?: string;
+    twitter_title?: string;
+    twitter_description?: string;
+    twitter_image?: string;
   };
   schema_org: Record<string, unknown>;
   breadcrumbs: Array<{ name: string; url: string }>;
