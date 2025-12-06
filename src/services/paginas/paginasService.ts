@@ -101,8 +101,12 @@ export default {
 
 export interface CloudflareCredentialsPayload {
   client_website_id: string;
-  account_id: string;
-  api_token: string;
+  account_id?: string;
+  api_token?: string;
+  r2_bucket?: string;
+  r2_access_key_id?: string;
+  r2_secret_access_key?: string;
+  r2_public_url?: string;
   supabase_url?: string;
   supabase_anon_key?: string;
   pages_project?: string;

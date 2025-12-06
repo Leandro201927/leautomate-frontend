@@ -16,7 +16,7 @@ import {
   Input,
   Switch,
 } from "@heroui/react";
-import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon, FilesIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -137,6 +137,9 @@ export default function PaginasPage() {
               <TableCell>
                 <Tooltip content="Editar">
                   <PencilSimpleIcon cursor='pointer' onClick={() => navigate(`/paginas/${item.id}`)} />
+                </Tooltip>
+                <Tooltip content="Biblioteca de medios">
+                  <FilesIcon className="ml-3" cursor='pointer' onClick={() => navigate(`/biblioteca?site=${encodeURIComponent(item.id)}`)} />
                 </Tooltip>
               </TableCell>
             </TableRow>

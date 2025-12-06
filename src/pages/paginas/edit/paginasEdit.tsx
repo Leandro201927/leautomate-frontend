@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
-import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs, Accordion, AccordionItem } from "@heroui/react";
+import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs, Accordion, AccordionItem, Chip } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
-import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, SwapIcon } from "@phosphor-icons/react";
+import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, SwapIcon, KeyIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
 import PreviewWebpageEngine from "./components/PreviewWebpageEngine";
 import { updateClientWebsite, saveCloudflareCredentials, exportClientWebsite, getCloudflareCredentials } from "@/services/paginas/paginasService";
+import { listMedia, presignUpload, finalizeUpload, uploadDirect } from "@/services/mediaService";
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -133,15 +134,35 @@ function EditorLayoutInner() {
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [loadingCreds, setLoadingCreds] = useState(false);
+  const [showCredsSettingsModal, setShowCredsSettingsModal] = useState(false);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [mediaItems, setMediaItems] = useState<{ key: string; url?: string }[]>([]);
+  const [activeAttrKey, setActiveAttrKey] = useState<string | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  
+  const [r2Bucket, setR2Bucket] = useState("");
+  const [r2AccessKey, setR2AccessKey] = useState("");
+  const [r2SecretKey, setR2SecretKey] = useState("");
+  const [r2PublicUrl, setR2PublicUrl] = useState("");
+  const [hasCredsRecord, setHasCredsRecord] = useState(true);
 
   async function handleSave() {
     if (!site) return;
     try {
       setSaving(true);
+      const gh = site.global_header ? {
+        ...site.global_header,
+        custom_header_elements: Array.isArray(site.global_header.custom_header_elements)
+          ? site.global_header.custom_header_elements
+          : (site.global_header.custom_header_elements ? [site.global_header.custom_header_elements] : undefined),
+      } : null;
       const updated = await updateClientWebsite(site.id, {
         name: site.name,
         can_change_fields_on_bd: !!site.can_change_fields_on_bd,
-        global_header: site.global_header ?? null,
+        global_header: gh,
         pages: site.pages,
         // incluir design_tokens para persistir paleta de colores
         // el servicio acepta campos arbitrarios; añadimos este JSON
@@ -181,6 +202,9 @@ function EditorLayoutInner() {
         {exportMessage && (
           <span className={exportMessage.includes("Error") ? "text-danger text-xs" : "text-success text-xs"}>{exportMessage}</span>
         )}
+        <Button isIconOnly variant="light" aria-label="Credenciales" onPress={() => setShowCredsSettingsModal(true)}>
+          <KeyIcon />
+        </Button>
       </div>
     );
     return () => setHeaderRightSlot(undefined);
@@ -197,11 +221,154 @@ function EditorLayoutInner() {
           setPagesBuildHook(String(c.pages_build_hook || ""));
           setSupabaseUrl(String(c.supabase_url || ""));
           setSupabaseAnonKey(String(c.supabase_anon_key || ""));
+          setR2Bucket(String(c.r2_bucket || ""));
+          setR2AccessKey(String(c.r2_access_key_id || ""));
+          setR2SecretKey(String(c.r2_secret_access_key || ""));
+          setR2PublicUrl(String(c.r2_public_url || ""));
         })
         .catch(() => {})
         .finally(() => setLoadingCreds(false));
     }
   }, [showExportModal, site]);
+
+  useEffect(() => {
+    if (showCredsSettingsModal && site) {
+      setLoadingCreds(true);
+      getCloudflareCredentials(site.id)
+        .then((c) => {
+          setCfAccountId(String(c.account_id || ""));
+          setCfApiToken(String(c.api_token || ""));
+          setPagesProject(String(c.pages_project || ""));
+          setPagesBuildHook(String(c.pages_build_hook || ""));
+          setSupabaseUrl(String(c.supabase_url || ""));
+          setSupabaseAnonKey(String(c.supabase_anon_key || ""));
+          setR2Bucket(String(c.r2_bucket || ""));
+          setR2AccessKey(String(c.r2_access_key_id || ""));
+          setR2SecretKey(String(c.r2_secret_access_key || ""));
+          setR2PublicUrl(String(c.r2_public_url || ""));
+          setHasCredsRecord(true);
+        })
+        .catch(() => { setHasCredsRecord(false); })
+        .finally(() => setLoadingCreds(false));
+    }
+  }, [showCredsSettingsModal, site]);
+
+  useEffect(() => {
+    const fetchLib = async () => {
+      if (!site || !libraryOpen) return;
+      try {
+        const items = await listMedia(site.id);
+        setMediaItems(items as any);
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        if (msg.includes("Missing R2 credentials")) {
+          try {
+            const c = await getCloudflareCredentials(site.id);
+            setHasCredsRecord(true);
+            setR2Bucket(String(c.r2_bucket || ""));
+            setR2AccessKey(String(c.r2_access_key_id || ""));
+            setR2SecretKey(String(c.r2_secret_access_key || ""));
+            setCfAccountId(String(c.account_id || ""));
+            setCfApiToken(String(c.api_token || ""));
+          } catch {
+            setHasCredsRecord(false);
+            setR2Bucket("");
+            setR2AccessKey("");
+            setR2SecretKey("");
+          }
+          setShowCredsSettingsModal(true);
+        } else {
+          setMediaItems([]);
+        }
+      }
+    };
+    fetchLib();
+  }, [libraryOpen, site]);
+
+  const onPickUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setUploadFile(f);
+    setUploadPreviewUrl(f ? URL.createObjectURL(f) : null);
+  };
+
+  const onUploadFile = async () => {
+    if (!site || !uploadFile) return;
+    const key = `${Date.now()}_${uploadFile.name}`;
+    try {
+      const presigned = await presignUpload(site.id, key, uploadFile.type || undefined);
+      await fetch(presigned.upload_url, { method: "PUT", headers: { "Content-Type": uploadFile.type || "application/octet-stream" }, body: uploadFile });
+      await finalizeUpload(site.id, { key, size: uploadFile.size, content_type: uploadFile.type || undefined });
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (msg.includes("Missing R2 credentials")) {
+        try {
+          const c = await getCloudflareCredentials(site.id);
+          setHasCredsRecord(true);
+          setR2Bucket(String(c.r2_bucket || ""));
+          setR2AccessKey(String(c.r2_access_key_id || ""));
+          setR2SecretKey(String(c.r2_secret_access_key || ""));
+          setCfAccountId(String(c.account_id || ""));
+          setCfApiToken(String(c.api_token || ""));
+        } catch {
+          setHasCredsRecord(false);
+        }
+        setShowCredsSettingsModal(true);
+        return;
+      }
+      try {
+        await uploadDirect(site.id, key, uploadFile);
+      } catch (e2) {
+        return;
+      }
+    }
+    setShowUpload(false);
+    setUploadFile(null);
+    setUploadPreviewUrl(null);
+    try { const items = await listMedia(site.id); setMediaItems(items as any); } catch { }
+  };
+
+  const onSaveCreds = async () => {
+    if (!site || !r2Bucket || !r2AccessKey || !r2SecretKey) return;
+    const payload: any = {
+      client_website_id: site.id,
+      r2_bucket: r2Bucket.trim(),
+      r2_access_key_id: r2AccessKey.trim(),
+      r2_secret_access_key: r2SecretKey.trim(),
+    };
+    if (!hasCredsRecord) {
+      if (!cfAccountId || !cfApiToken) return;
+      payload.account_id = cfAccountId.trim();
+      payload.api_token = cfApiToken.trim();
+    } else {
+      payload.account_id = cfAccountId ? cfAccountId.trim() : undefined;
+      payload.api_token = cfApiToken ? cfApiToken.trim() : undefined;
+    }
+    await saveCloudflareCredentials(payload);
+    setShowCredsModal(false);
+    try { const items = await listMedia(site.id); setMediaItems(items as any); } catch {}
+  };
+
+  const onSaveAllCreds = async () => {
+    if (!site) return;
+    const payload: any = {
+      client_website_id: site.id,
+      account_id: cfAccountId ? cfAccountId.trim() : undefined,
+      api_token: cfApiToken ? cfApiToken.trim() : undefined,
+      r2_bucket: r2Bucket ? r2Bucket.trim() : undefined,
+      r2_access_key_id: r2AccessKey ? r2AccessKey.trim() : undefined,
+      r2_secret_access_key: r2SecretKey ? r2SecretKey.trim() : undefined,
+      r2_public_url: r2PublicUrl ? r2PublicUrl.trim() : undefined,
+      supabase_url: supabaseUrl ? supabaseUrl.trim() : undefined,
+      supabase_anon_key: supabaseAnonKey ? supabaseAnonKey.trim() : undefined,
+      pages_project: pagesProject ? pagesProject.trim() : undefined,
+      pages_build_hook: pagesBuildHook ? pagesBuildHook.trim() : undefined,
+    };
+    if (!hasCredsRecord) {
+      if (!payload.account_id || !payload.api_token) return;
+    }
+    await saveCloudflareCredentials(payload);
+    setShowCredsSettingsModal(false);
+  };
 
   // For editor, expand layout to full viewport width
   useEffect(() => {
@@ -469,15 +636,6 @@ function EditorLayoutInner() {
                     onValueChange={(v) => actions.updatePage(page.id, { keyword_focus: v.split(",").map((s) => s.trim()).filter(Boolean) })}
                   />
 
-                  {/* Page Typography override */}
-                  {site.typography && (
-                    <TypographyPanel
-                      scope="page"
-                      tokens={mergeTokens(site.typography.global, page.typography_override)}
-                      onChange={(tag, patch) => actions.updatePageTypographyToken(page.id, tag, patch)}
-                      onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
-                    />
-                  )}
                   <div className="font-semibold">Robots</div>
                   <div className="flex gap-4 items-center">
                     <Switch isSelected={!!page.noindex} onValueChange={(val) => actions.updatePage(page.id, { noindex: !!val })}>noindex</Switch>
@@ -678,7 +836,19 @@ function EditorLayoutInner() {
                               </div>
                             );
                           }
-                          // por defecto: input de texto
+                          if (valType === "img" || valType === "file") {
+                            return (
+                              <div key={k} className="flex items-end gap-2">
+                                <Input label={k} value={String(valValue ?? "")} onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: valType, value: val } })} />
+                                <Button size="sm" variant="light" onPress={async () => {
+                                  if (!site) return;
+                                  setActiveAttrKey(k);
+                                  try { const items = await listMedia(site.id); setMediaItems(items as any); } catch { setMediaItems([]); }
+                                  setShowMediaModal(true);
+                                }}>Galería</Button>
+                              </div>
+                            );
+                          }
                           return (
                             <Input
                               key={k}
@@ -690,20 +860,77 @@ function EditorLayoutInner() {
                         })
                       )}
                     </div>
-                    {site.typography && (
-                      <TypographyPanel
-                        scope="component"
-                        tokens={mergeTokens(
-                          mergeTokens(site.typography.global, page!.typography_override),
-                          selectedComponent.typography_override
-                        )}
-                        onChange={(tag, patch) => actions.updateComponentTypographyToken(page!.id, state.selectedComponentPath, tag, patch)}
-                        onLoadFont={(family) => actions.loadGoogleFontFamily(family)}
-                      />
-                    )}
                   </div>
                 ) : (
                   <div className="opacity-70">Selecciona un componente para ver sus atributos.</div>
+                )}
+              </div>
+            </AccordionItem>
+
+            <AccordionItem
+              key="library"
+              aria-label="Biblioteca"
+              indicator={<FilesIcon />}
+              className="shadow-none"
+              title={
+                <div className="flex items-center justify-between w-full">
+                  <span>Biblioteca</span>
+                  <div className="flex items-center gap-0">
+                    <Button size="sm" variant="flat" className="min-w-0" style={{ background: 'transparent' }} onPress={async () => {
+                      if (!site) return;
+                      try {
+                        const items = await listMedia(site.id);
+                        setMediaItems(items as any);
+                      } catch (e: any) {
+                        const msg = String(e?.message || "");
+                        if (msg.includes("Missing R2 credentials")) {
+                          try {
+                            const c = await getCloudflareCredentials(site.id);
+                            setHasCredsRecord(true);
+                            setR2Bucket(String(c.r2_bucket || ""));
+                            setR2AccessKey(String(c.r2_access_key_id || ""));
+                            setR2SecretKey(String(c.r2_secret_access_key || ""));
+                            setCfAccountId(String(c.account_id || ""));
+                            setCfApiToken(String(c.api_token || ""));
+                          } catch {
+                            setHasCredsRecord(false);
+                          }
+                          setShowCredsSettingsModal(true);
+                        }
+                      }
+                    }}><ArrowsClockwiseIcon size={14} /></Button>
+                    <Button size="sm" className="min-w-0 mr-0" style={{ background: 'transparent' }} onPress={() => setShowUpload(true)}><PlusIcon size={14} /></Button>
+                  </div>
+                </div>
+              }
+            >
+              <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+                 {libraryOpen && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {mediaItems.map((it) => {
+                      const name = (it.key || "").split('/').pop() || it.key;
+                      const isImage = (it.url || it.key) && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(String(it.url || it.key));
+                      const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+                      return (
+                        <Button key={it.key} variant="light" className="p-0" style={{ height: 'auto' }}>
+                          <div className="w-full">
+                            {isImage ? (
+                              <img src={`${(import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000"}/api/cloudflare/r2/file/${encodeURIComponent(site.id)}?key=${encodeURIComponent(it.key)}`} alt={name} className="w-full h-32 min-h-[128px] object-cover rounded" />
+                            ) : (
+                              <div className="w-full h-32 min-h-[128px] bg-gray-100 text-gray-700 flex items-center justify-center rounded px-2">
+                                <div className="flex items-center gap-2 truncate w-full justify-center">
+                                  <FilesIcon />
+                                  <span className="text-xs font-medium truncate" title={name}>{name}</span>
+                                  {ext && (<Chip size="sm" variant="flat">{ext}</Chip>)}
+                                </div>
+                              </div>
+                            )}
+                            <div className="text-[10px] break-all mt-1 px-1">{name}</div>
+                          </div>
+                        </Button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </AccordionItem>
@@ -745,6 +972,12 @@ function EditorLayoutInner() {
                   <div className="font-semibold text-sm">Cloudflare</div>
                   <Input isDisabled={loadingCreds} label="account_id" value={cfAccountId} onValueChange={setCfAccountId} />
                   <Input isDisabled={loadingCreds} label="api_token" type="text" value={cfApiToken} onValueChange={setCfApiToken} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input isDisabled={loadingCreds} label="r2_bucket" value={r2Bucket} onValueChange={setR2Bucket} autoComplete="off" name="r2-bucket" placeholder="test" />
+                    <Input isDisabled={loadingCreds} label="r2_access_key_id" value={r2AccessKey} onValueChange={setR2AccessKey} autoComplete="off" name="r2-access-key-id" placeholder="e12fe8b..." />
+                    <Input isDisabled={loadingCreds} label="r2_secret_access_key" value={r2SecretKey} onValueChange={setR2SecretKey} autoComplete="off" name="r2-secret-access-key" placeholder="4d0a31..." />
+                  </div>
+                  <Input isDisabled={loadingCreds} label="r2_public_url" value={r2PublicUrl} onValueChange={setR2PublicUrl} autoComplete="off" name="r2-public-url" placeholder="https://pub-xxx.r2.dev" description="URL pública de R2 para descargas gratuitas" />
                   <Input isDisabled={loadingCreds} label="pages_project" value={pagesProject} onValueChange={setPagesProject} />
                   <Input isDisabled={loadingCreds} label="pages_build_hook" value={pagesBuildHook} onValueChange={setPagesBuildHook} />
                   <div className="font-semibold text-sm">Supabase</div>
@@ -758,7 +991,7 @@ function EditorLayoutInner() {
                   if (!site) return;
                   try {
                     setExporting(true);
-                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined, pages_project: pagesProject.trim() || undefined, pages_build_hook: pagesBuildHook.trim() || undefined });
+                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), r2_bucket: r2Bucket.trim() || undefined, r2_access_key_id: r2AccessKey.trim() || undefined, r2_secret_access_key: r2SecretKey.trim() || undefined, r2_public_url: r2PublicUrl.trim() || undefined, supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined, pages_project: pagesProject.trim() || undefined, pages_build_hook: pagesBuildHook.trim() || undefined });
                     const res = await exportClientWebsite(site.id);
                     setExportMessage(`OK (${res.pages_exported} páginas, ${res.components_copied} componentes)`);
                     onClose();
@@ -775,6 +1008,93 @@ function EditorLayoutInner() {
           )}
         </ModalContent>
       </Modal>
+
+      <Modal isOpen={showMediaModal} onOpenChange={setShowMediaModal}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">Biblioteca de medios</ModalHeader>
+              <ModalBody>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {mediaItems.map((it) => {
+                    const isImage = it.url && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(it.url);
+                    return (
+                      <Button key={it.key} variant="light" className="p-0" onPress={() => {
+                        if (!page || !activeAttrKey) return;
+                        actions.updateComponentAttrs(page.id, state.selectedComponentPath, { [activeAttrKey]: { type: selectedComponent?.custom_attrs?.[activeAttrKey]?.type, value: it.url || it.key } as any });
+                        setShowMediaModal(false);
+                        setActiveAttrKey(null);
+                      }}>
+                        <div className="w-full">
+                          {isImage ? (
+                            <img src={it.url!} alt={it.key} className="w-full h-24 object-cover rounded" />
+                          ) : (
+                            <div className="w-full h-24 bg-gray-100 text-gray-500 flex items-center justify-center rounded">Archivo</div>
+                          )}
+                          <div className="text-[10px] break-all mt-1 px-1">{it.key}</div>
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>Cerrar</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={showUpload} onOpenChange={setShowUpload}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">Subir archivo</ModalHeader>
+              <ModalBody>
+                <input type="file" onChange={onPickUploadFile} />
+                {uploadPreviewUrl && (
+                  <img src={uploadPreviewUrl} alt="preview" className="max-h-40 rounded" />
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>Cancelar</Button>
+                <Button color="primary" onPress={onUploadFile} isDisabled={!uploadFile}>Subir</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={showCredsSettingsModal} onOpenChange={setShowCredsSettingsModal}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">Configurar credenciales</ModalHeader>
+              <ModalBody>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input label="Cloudflare Account ID" value={cfAccountId} onValueChange={setCfAccountId} autoComplete="off" name="cloudflare-account-id" placeholder="ec768f13..." />
+                  <Input label="Cloudflare API Token" value={cfApiToken} onValueChange={setCfApiToken} autoComplete="off" name="cloudflare-api-token" placeholder="jv6FSv..." />
+                  <Input label="R2 Bucket" value={r2Bucket} onValueChange={setR2Bucket} autoComplete="off" name="r2-bucket" placeholder="test" />
+                  <Input label="R2 Access Key ID" value={r2AccessKey} onValueChange={setR2AccessKey} autoComplete="off" name="r2-access-key-id" placeholder="e12fe8b..." />
+                  <Input label="R2 Secret Access Key" value={r2SecretKey} onValueChange={setR2SecretKey} autoComplete="off" name="r2-secret-access-key" placeholder="4d0a31..." />
+                  <Input label="R2 Public URL" value={r2PublicUrl} onValueChange={setR2PublicUrl} autoComplete="off" name="r2-public-url" placeholder="https://pub-xxx.r2.dev" />
+                  <Input label="Supabase URL" value={supabaseUrl} onValueChange={setSupabaseUrl} autoComplete="off" name="supabase-url" placeholder="https://...supabase.co" />
+                  <Input label="Supabase anon key" value={supabaseAnonKey} onValueChange={setSupabaseAnonKey} autoComplete="off" name="supabase-anon-key" placeholder="eyJhbGciOi..." />
+                  <Input label="Pages Project" value={pagesProject} onValueChange={setPagesProject} autoComplete="off" name="pages-project" placeholder="astro-test" />
+                  <Input label="Pages Build Hook URL" value={pagesBuildHook} onValueChange={setPagesBuildHook} autoComplete="off" name="pages-build-hook" placeholder="https://..." />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={onClose}>Cancelar</Button>
+                <Button color="primary" onPress={onSaveAllCreds} isDisabled={!hasCredsRecord && (!cfAccountId || !cfApiToken)}>Guardar</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      
 
       {/* Diálogo para añadir componente desde biblioteca */}
       <AddComponentDialog
