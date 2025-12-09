@@ -14,6 +14,7 @@ export async function getClientWebsite(id: string): Promise<ClientWebsite | null
       name: data.name,
       can_change_fields_on_bd: !!data.can_change_fields_on_bd,
       global_header: data.global_header ?? null,
+      global_components: data.global_components ?? null,
       pages: data.pages ?? [],
       design_tokens: data.design_tokens ?? undefined,
     } as ClientWebsite;

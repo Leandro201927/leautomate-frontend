@@ -4,7 +4,7 @@ export const manifest = {
     "atomicHierarchy": "template",
     "custom_attrs": {
         "image_hero_right_href": {
-            "type": "url_file",
+            "type": "img",
             "value": ""
         },
         "title": {
@@ -32,7 +32,7 @@ export const sample = {
     "atomicHierarchy": "template",
     "custom_attrs": {
         "image_hero_right_href": {
-            "type": "url_file",
+            "type": "img",
             "value": "https://cdn.dribbble.com/userupload/17997198/file/original-0b76b434fff5a0d73ace858d1eed107d.png?resize=1024x768&vertical=center"
         },
         "title": {

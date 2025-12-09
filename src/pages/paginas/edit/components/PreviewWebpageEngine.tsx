@@ -194,32 +194,91 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
       <div
         className="space-y-4"
         onClick={(e) => {
+          console.log('🔵 CLICK EVENT FIRED', e.target);
+          
+          // Stop event propagation to prevent parent handlers from interfering
+          e.stopPropagation();
+          
           const t = e.target as HTMLElement;
           const wrap = t.closest('.comp-wrap') as HTMLElement | null;
-          if (!wrap) return;
+          console.log('🟢 Found wrap:', wrap);
+          if (!wrap) {
+            console.log('🔴 NO WRAP FOUND - returning');
+            return;
+          }
+
+          const globalSlot = wrap.getAttribute('data-global-slot');
           const idxStr = wrap.getAttribute('data-top-index');
           const idx = idxStr ? Number(idxStr) : NaN;
-          if (Number.isNaN(idx)) return;
+          
+          if (!globalSlot && Number.isNaN(idx)) {
+             console.log('🔴 NO VALID ID FOUND - returning');
+             return;
+          }
+          
           const slotEl = t.closest('[data-component-path]') as HTMLElement | null;
+          console.log('🟣 Slot element:', slotEl);
+          
+          // Clean up ALL previous selection states before applying new ones
+          // Remove all .selected-sub classes from any elements
+          document.querySelectorAll('.selected-sub').forEach(el => {
+            el.classList.remove('selected-sub');
+          });
+          
+          // Remove all .active classes from wrapper elements
+          document.querySelectorAll('.comp-wrap.active').forEach(el => {
+            el.classList.remove('active');
+          });
+          
           if (slotEl) {
             const slot = slotEl.getAttribute('data-component-slot');
             if (slot) {
-              if (selectedSubEl && selectedSubEl !== slotEl) selectedSubEl.classList.remove('selected-sub');
+              console.log('✅ SELECTING SUBCOMPONENT:', slot);
               slotEl.classList.add('selected-sub');
               setSelectedSubEl(slotEl);
-              actions.selectComponentPath(["components", String(idx), "custom_attrs", slot, "value"]);
+              
+              if (globalSlot) {
+                 actions.selectComponentPath(["global_components", globalSlot, "custom_attrs", slot, "value"]);
+              } else {
+                 actions.selectComponentPath(["components", String(idx), "custom_attrs", slot, "value"]);
+              }
+              return;
             }
+          }
+          
+          // Top-level component clicked
+          wrap.classList.add('active');
+          setSelectedSubEl(null);
+          
+          if (globalSlot) {
+              console.log('✅ SELECTING GLOBAL COMPONENT:', globalSlot);
+              actions.selectComponentPath(["global_components", globalSlot]);
           } else {
-            if (selectedSubEl) { selectedSubEl.classList.remove('selected-sub'); setSelectedSubEl(null); }
-            actions.selectComponentPath(["components", String(idx)]);
+              console.log('✅ SELECTING TOP-LEVEL COMPONENT at index:', idx);
+              actions.selectComponentPath(["components", String(idx)]);
           }
         }}
       >
+        {/* Global Header */}
+        {state.site?.global_components?.header && (
+            <div 
+              className={`comp-wrap ${state.selectedComponentPath[0] === 'global_components' && state.selectedComponentPath[1] === 'header' ? 'active' : ''}`}
+              data-global-slot="header"
+            >
+                <ComponentRenderer
+                    name={state.site.global_components.header.name}
+                    attrs={flattenCustomAttrsResolveColors(state.site.global_components.header.custom_attrs as any, state.site?.design_tokens?.colors ?? {})}
+                    libraryByName={libraryByName}
+                />
+            </div>
+        )}
+
+        {/* Page Components */}
         {components.length === 0 && (
-          <div className="opacity-70 text-sm text-center">Esta página no tiene componentes aún.</div>
+          <div className="opacity-70 text-sm text-center py-8">Esta página no tiene componentes propios.</div>
         )}
         {components.map((c: ClientComponent, idx: number) => {
-          const isTopSelected = state.selectedComponentPath[0] === "components" && state.selectedComponentPath[1] === String(idx) && state.selectedComponentPath.length === 2;
+          const isTopSelected = state.selectedComponentPath[0] === "components" && state.selectedComponentPath[1] === String(idx);
           return (
             <div key={idx} className={`comp-wrap ${isTopSelected ? "active" : ""}`} data-top-index={idx}>
               <ComponentRenderer
@@ -230,6 +289,20 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
             </div>
           );
         })}
+
+        {/* Global Footer */}
+        {state.site?.global_components?.footer && (
+            <div 
+              className={`comp-wrap ${state.selectedComponentPath[0] === 'global_components' && state.selectedComponentPath[1] === 'footer' ? 'active' : ''}`}
+              data-global-slot="footer"
+            >
+                <ComponentRenderer
+                    name={state.site.global_components.footer.name}
+                    attrs={flattenCustomAttrsResolveColors(state.site.global_components.footer.custom_attrs as any, state.site?.design_tokens?.colors ?? {})}
+                    libraryByName={libraryByName}
+                />
+            </div>
+        )}
       </div>
     </div>
   );

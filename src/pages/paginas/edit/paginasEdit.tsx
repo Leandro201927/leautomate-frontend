@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
-import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, CardHeader, Tab, Tabs, Accordion, AccordionItem, Chip } from "@heroui/react";
+import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Tab, Tabs, Accordion, AccordionItem, Chip } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
-import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, PhoneIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, SwapIcon, KeyIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, KeyIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import AddComponentDialog from "./components/AddComponentDialog";
 import TypographyPanel from "./components/TypographyPanel";
 import type { TypographyScale } from "@/types/clientWebsite";
@@ -108,10 +108,18 @@ function EditorLayoutInner() {
   const { state, actions } = useEditor();
   const { setHeaderRightSlot, setWidthToFullViewport } = useOutletContext<LayoutOutletContext>();
   const site = state.site;
+  useEffect(() => {
+    console.log("DEBUG: EditorLayoutInner site changed", site?.global_components);
+  }, [site]);
   const page = site?.pages.find((p) => p.id === state.selectedPageId) ?? site?.pages[0];
-  const selectedComponent = page && state.selectedComponentPath.length > 0
-    ? (getByPath(page, state.selectedComponentPath) as Component | undefined)
-    : undefined;
+  const selectedComponent =
+    state.selectedComponentPath.length > 0
+      ? state.selectedComponentPath[0] === "global_components"
+        ? (getByPath(site, state.selectedComponentPath) as Component | undefined)
+        : page
+          ? (getByPath(page, state.selectedComponentPath) as Component | undefined)
+          : undefined
+      : undefined;
 
   const isPreviewFullscreen = true;
   const [previewMode, setPreviewMode] = useState<"mobile" | "tablet" | "desktop">("desktop");
@@ -119,6 +127,7 @@ function EditorLayoutInner() {
   const [newPageType, setNewPageType] = useState<"landing-page" | "articles" | "ecommerce">("landing-page");
   const [panelsMode, setPanelsMode] = useState<"none" | "left" | "right" | "both">("both");
   const [showAddComponentDialog, setShowAddComponentDialog] = useState(false);
+  const [addComponentTarget, setAddComponentTarget] = useState<{ type: 'page' } | { type: 'global'; slot: 'header' | 'footer' }>({ type: 'page' });
   const [selectSubComponentSlotKey, setSelectSubComponentSlotKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -136,7 +145,7 @@ function EditorLayoutInner() {
   const [loadingCreds, setLoadingCreds] = useState(false);
   const [showCredsSettingsModal, setShowCredsSettingsModal] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
-  const [mediaItems, setMediaItems] = useState<{ key: string; url?: string }[]>([]);
+  const [mediaItems, setMediaItems] = useState<{ key: string; url?: string; size?: number }[]>([]);
   const [activeAttrKey, setActiveAttrKey] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
@@ -168,6 +177,7 @@ function EditorLayoutInner() {
         // el servicio acepta campos arbitrarios; añadimos este JSON
         // en el backend lo guardamos como JSON
         design_tokens: site.design_tokens ?? null,
+        global_components: site.global_components ?? null,
       });
       setSaveMessage("Guardado");
       // refrescar el sitio desde backend para reflejar updated_at y normalizaciones
@@ -344,7 +354,7 @@ function EditorLayoutInner() {
       payload.api_token = cfApiToken ? cfApiToken.trim() : undefined;
     }
     await saveCloudflareCredentials(payload);
-    setShowCredsModal(false);
+    setShowCredsSettingsModal(false);
     try { const items = await listMedia(site.id); setMediaItems(items as any); } catch {}
   };
 
@@ -389,18 +399,7 @@ function EditorLayoutInner() {
   const leftVisible = panelsMode === "both" || panelsMode === "left";
   const rightVisible = panelsMode === "both" || panelsMode === "right";
 
-  function mergeTokens(base: TypographyScale, override?: Partial<TypographyScale>): TypographyScale {
-    return {
-      h1: { ...base.h1, ...(override?.h1 ?? {}) },
-      h2: { ...base.h2, ...(override?.h2 ?? {}) },
-      h3: { ...base.h3, ...(override?.h3 ?? {}) },
-      h4: { ...base.h4, ...(override?.h4 ?? {}) },
-      h5: { ...base.h5, ...(override?.h5 ?? {}) },
-      h6: { ...base.h6, ...(override?.h6 ?? {}) },
-      p: { ...base.p, ...(override?.p ?? {}) },
-      span: { ...base.span, ...(override?.span ?? {}) },
-    };
-  }
+
 
   // Normaliza tokens globales asegurando que existan p y span
   const globalTokensForPanel: TypographyScale | undefined = site?.typography
@@ -507,6 +506,112 @@ function EditorLayoutInner() {
                       Añadir
                     </Button>
                   </div>
+                </div>
+              </div>
+            </AccordionItem>
+
+            <AccordionItem
+              key="global_components"
+              aria-label="Componentes Globales"
+              indicator={<PuzzlePieceIcon />} // Reusing existing icon or new if import available
+              title="Globales (Header/Footer)"
+              className="shadow-none"
+            >
+              <div className="space-y-4 text-sm">
+                <div className="opacity-70">Componentes que aparecen en todas las páginas.</div>
+                
+                {/* Header Slot */}
+                <div className="space-y-2">
+                  <div className="font-semibold flex items-center justify-between">
+                    <span>Header</span>
+                    {!site.global_components?.header && (
+                      <Button 
+                        size="sm" 
+                        variant="flat" 
+                        color="primary" 
+                        onPress={() => {
+                          setAddComponentTarget({ type: 'global', slot: 'header' });
+                          setShowAddComponentDialog(true);
+                        }}
+                      >
+                        Seleccionar
+                      </Button>
+                    )}
+                  </div>
+                  {site.global_components?.header ? (
+                    <div className="mb-2">
+                      <div
+                        onClick={() => actions.selectComponentPath(['global_components', 'header'])}
+                        className={(pathsEqual(state.selectedComponentPath, ['global_components', 'header']) ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold text-sm">{site.global_components.header.name}</div>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            color="danger"
+                            aria-label="Eliminar Header"
+                            onPress={(e) => { (e as any).stopPropagation?.(); actions.setGlobalComponent('header', null); }}
+                          >
+                            <TrashIcon />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-2 ml-2 border-l border-foreground/10 pl-2">
+                        <ComponentsRecursive obj={site.global_components.header} path={['global_components', 'header']} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs opacity-50 italic">Sin header global</div>
+                  )}
+                </div>
+
+                {/* Footer Slot */}
+                <div className="space-y-2 border-t border-foreground/10 pt-2">
+                   <div className="font-semibold flex items-center justify-between">
+                    <span>Footer</span>
+                    {!site.global_components?.footer && (
+                      <Button 
+                        size="sm" 
+                        variant="flat" 
+                        color="primary" 
+                        onPress={() => {
+                          setAddComponentTarget({ type: 'global', slot: 'footer' });
+                          setShowAddComponentDialog(true);
+                        }}
+                      >
+                        Seleccionar
+                      </Button>
+                    )}
+                  </div>
+                  {site.global_components?.footer ? (
+                    <div className="mb-2">
+                      <div
+                        onClick={() => actions.selectComponentPath(['global_components', 'footer'])}
+                        className={(pathsEqual(state.selectedComponentPath, ['global_components', 'footer']) ? "selected bg-foreground/10" : "bg-content1/50") + " shadow-none p-3 rounded-md cursor-pointer"}
+                      >
+                         <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold text-sm">{site.global_components.footer.name}</div>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            color="danger"
+                            aria-label="Eliminar Footer"
+                            onPress={(e) => { (e as any).stopPropagation?.(); actions.setGlobalComponent('footer', null); }}
+                          >
+                            <TrashIcon />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-2 ml-2 border-l border-foreground/10 pl-2">
+                        <ComponentsRecursive obj={site.global_components.footer} path={['global_components', 'footer']} />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs opacity-50 italic">Sin footer global</div>
+                  )}
                 </div>
               </div>
             </AccordionItem>
@@ -732,137 +837,93 @@ function EditorLayoutInner() {
             </AccordionItem>
 
             <AccordionItem key="component" aria-label="Propiedades de Componente" indicator={<PuzzlePieceIcon />} title="Propiedades de Componente" className="shadow-none">
-              <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}> 
-                <div className="opacity-70">JSON-LD (seo) del componente seleccionado:</div>
-                {selectedComponent ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      label="seo (JSON-LD)"
-                      value={JSON.stringify(selectedComponent.seo ?? { "@context": "https://schema.org", "@type": "Thing" }, null, 2)}
-                      onBlur={(e) => {
-                        try {
-                          const json = JSON.parse(e.target.value || "{}");
-                          actions.updateComponentSeo(page!.id, state.selectedComponentPath, json);
-                        } catch {}
-                      }}
-                      onValueChange={() => { /* guardamos en blur para evitar incoherencias mientras se tipea */ }}
-                    />
-                    <Button color="danger" variant="light" onPress={() => actions.updateComponentSeo(page!.id, state.selectedComponentPath, null)}>Eliminar JSON-LD</Button>
-                  </div>
+              <div className="space-y-4 text-sm" style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+                {!selectedComponent ? (
+                  <div className="opacity-70">Selecciona un componente de la lista para editar sus propiedades.</div>
                 ) : (
-                  <div className="opacity-70">Selecciona un componente para editar su JSON-LD.</div>
-                )}
-                {selectedComponent ? (
-                  <div>
-                    <div className="font-semibold mb-1">custom_attrs</div>
-                    <div className="space-y-2">
-                      {Object.entries(selectedComponent.custom_attrs ?? {}).length === 0 ? (
-                        <div className="opacity-70">Sin atributos personalizados.</div>
-                      ) : (
-                        Object.entries(selectedComponent.custom_attrs as Record<string, any>).map(([k, v]) => {
-                          const valType = (v && typeof v === "object" && "type" in v) ? (v as any).type : undefined;
-                          const valValue = (v && typeof v === "object" && "value" in v) ? (v as any).value : v;
-                          // componente anidado
-                          const looksLikeLegacyComponent = !valType && valValue && typeof valValue === "object" && "name" in (valValue as any);
-                          if (valType === "component" || looksLikeLegacyComponent) {
-                            const child = (valValue || undefined) as any;
-                            const hasChild = child && typeof child === "object" && "name" in child;
-                            return (
-                              <div key={k} className="p-2 rounded bg-content1/50">
-                                <div className="flex items-center justify-between">
-                                  <div className="text-xs font-semibold">{k}</div>
-                                  <div className="flex items-center gap-2">
-                                    <Button className="px-0 min-w-[32px]" size="sm" variant="light" onPress={() => setSelectSubComponentSlotKey(k)}>{hasChild ? <SwapIcon /> : "Seleccionar"}</Button>
-                                    {hasChild && (
-                                      <Button className="px-0 min-w-[32px]" size="sm" variant="light" color="danger" onPress={() => actions.setNestedComponentSlot(page!.id, state.selectedComponentPath, k, null)}><TrashIcon /></Button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="mt-2 text-xs">
-                                  {hasChild ? (
-                                    <div>
-                                      <div className="font-semibold">{(child as Component).name}</div>
-                                      <div className="opacity-70">atomic: {(child as Component).atomic_hierarchy}</div>
-                                    </div>
-                                  ) : (
-                                    <div className="opacity-70">Sin componente seleccionado en este slot.</div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          // color: permitir variable o personalizado
-                          if (valType === "color") {
-                            const colors = site.design_tokens?.colors ?? {};
-                            const isVarRef = typeof valValue === "string" && (valValue.startsWith("var:") || valValue.startsWith("var(--"));
-                            const currentVarName = isVarRef ? (valValue.startsWith("var:") ? String(valValue).slice(4) : String(valValue).replace(/^var\(--|\)$/g, "").replace(/\)$/, "")) : "";
-                            const currentHex = !isVarRef && typeof valValue === "string" ? valValue : "#000000";
-                            return (
-                              <div key={k} className="p-2 rounded bg-content1/50 space-y-2">
-                                <div className="text-xs font-semibold">{k}</div>
-                                <div className="flex items-center gap-2">
-                                  <label className="text-xs">Variable</label>
-                                  <select
-                                    className="text-sm border rounded px-2 py-1 bg-content1"
-                                    value={isVarRef ? currentVarName : ""}
-                                    onChange={(e) => {
-                                      const name = e.target.value;
-                                      if (name) {
-                                        actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: `var:${name}` } });
-                                      } else {
-                                        actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: currentHex } });
-                                      }
-                                    }}
-                                  >
-                                    <option value="">— sin variable —</option>
-                                    {Object.keys(colors).map((n) => (
-                                      <option key={n} value={n}>{n}</option>
-                                    ))}
-                                  </select>
-                                  <label className="text-xs">Personalizado</label>
-                                  <input
-                                    aria-label={`Color personalizado ${k}`}
-                                    type="color"
-                                    className="cursor-pointer"
-                                    style={{ width: 28, height: 28 }}
-                                    value={currentHex}
-                                    onClick={(e) => { (e as any).stopPropagation?.(); }}
-                                    onChange={(e) => {
-                                      // Al elegir un color personalizado, forzamos a no usar variable
-                                      actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: "color", value: e.target.value } });
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          }
-                          if (valType === "img" || valType === "file") {
-                            return (
-                              <div key={k} className="flex items-end gap-2">
-                                <Input label={k} value={String(valValue ?? "")} onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: valType, value: val } })} />
-                                <Button size="sm" variant="light" onPress={async () => {
-                                  if (!site) return;
-                                  setActiveAttrKey(k);
-                                  try { const items = await listMedia(site.id); setMediaItems(items as any); } catch { setMediaItems([]); }
-                                  setShowMediaModal(true);
-                                }}>Galería</Button>
-                              </div>
-                            );
-                          }
-                          return (
-                            <Input
-                              key={k}
-                              label={k}
-                              value={String(valValue ?? "")}
-                              onValueChange={(val) => actions.updateComponentAttrs(page!.id, state.selectedComponentPath, { [k]: { type: typeof valValue === "number" ? "number" : "string", value: val } as any })}
-                            />
-                          );
-                        })
-                      )}
+                  <div className="space-y-4">
+                    <div className="font-semibold text-xs uppercase tracking-wider opacity-50 border-b border-foreground/10 pb-1">
+                      {selectedComponent.name}
                     </div>
+                    {(!selectedComponent.custom_attrs || Object.keys(selectedComponent.custom_attrs).length === 0) ? (
+                      <div className="opacity-70 text-xs">Este componente no tiene propiedades editables.</div>
+                    ) : (
+                      Object.entries(selectedComponent.custom_attrs).map(([k, v]) => {
+                        const valType = v?.type || "text";
+                        const valValue = v?.value;
+                        const isGlobal = state.selectedComponentPath[0] === 'global_components';
+
+                        const updateAttr = (newVal: any) => {
+                          const patch = { [k]: { type: valType, value: newVal } as any };
+                          if (isGlobal) actions.updateGlobalComponentAttrs(state.selectedComponentPath, patch);
+                          else if (page) actions.updateComponentAttrs(page.id, state.selectedComponentPath, patch);
+                        };
+
+                        if (valType === "img" || valType === "file") {
+                          return (
+                            <div key={k} className="flex gap-2 items-end">
+                              <Input label={k} value={String(valValue || "")} onValueChange={updateAttr} className="flex-1" />
+                              <Button isIconOnly onPress={() => { setActiveAttrKey(k); setShowMediaModal(true); }}>
+                                <FilesIcon />
+                              </Button>
+                            </div>
+                          );
+                        }
+                        
+                        if (valType === "color") {
+                          return (
+                            <div key={k} className="flex items-center gap-2">
+                               <Input label={k} value={String(valValue ?? "#000000")} onValueChange={updateAttr} className="flex-1" />
+                               <input type="color" value={String(valValue ?? "#000000")} onChange={(e) => updateAttr(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                            </div>
+                          );
+                        }
+
+                        if (valType === "array" && Array.isArray(valValue)) {
+                           // Simplified Array Editor
+                           return (
+                             <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
+                               <div className="font-semibold text-xs opacity-70">{k} (Array)</div>
+                               <div className="max-h-40 overflow-y-auto space-y-2">
+                                 {valValue.map((item, idx) => (
+                                   <div key={idx} className="pl-2 border-l-2 border-primary/20">
+                                      {typeof item === 'object' ? (
+                                        <div className="text-xs opacity-50">Item {idx + 1} (Complex Object) - Edit via JSON below</div>
+                                      ) : (
+                                        <div className="text-sm">{String(item)}</div>
+                                      )}
+                                   </div>
+                                 ))}
+                               </div>
+                               <Textarea 
+                                 label="Edit JSON" 
+                                 minRows={1} 
+                                 value={JSON.stringify(valValue)} 
+                                 onValueChange={(txt) => { try { updateAttr(JSON.parse(txt)); } catch {} }} 
+                               />
+                             </div>
+                           );
+                        }
+
+                        if (valType === "object" && valValue && typeof valValue === 'object') {
+                           return (
+                             <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
+                               <div className="font-semibold text-xs opacity-70">{k} (Object)</div>
+                               {/* Allow nested slot editing if it has 'slot' property? No, keeping it simple for now */}
+                               <Textarea 
+                                 minRows={3} 
+                                 value={JSON.stringify(valValue, null, 2)} 
+                                 onValueChange={(txt) => { try { updateAttr(JSON.parse(txt)); } catch {} }} 
+                               />
+                             </div>
+                           );
+                        }
+
+                        // Default Text/Number
+                        return <Input key={k} label={k} value={String(valValue ?? "")} onValueChange={updateAttr} />;
+                      })
+                    )}
                   </div>
-                ) : (
-                  <div className="opacity-70">Selecciona un componente para ver sus atributos.</div>
                 )}
               </div>
             </AccordionItem>
@@ -872,47 +933,43 @@ function EditorLayoutInner() {
               aria-label="Biblioteca"
               indicator={<FilesIcon />}
               className="shadow-none"
-              title={
-                <div className="flex items-center justify-between w-full">
-                  <span>Biblioteca</span>
-                  <div className="flex items-center gap-0">
-                    <Button size="sm" variant="flat" className="min-w-0" style={{ background: 'transparent' }} onPress={async () => {
-                      if (!site) return;
-                      try {
-                        const items = await listMedia(site.id);
-                        setMediaItems(items as any);
-                      } catch (e: any) {
-                        const msg = String(e?.message || "");
-                        if (msg.includes("Missing R2 credentials")) {
-                          try {
-                            const c = await getCloudflareCredentials(site.id);
-                            setHasCredsRecord(true);
-                            setR2Bucket(String(c.r2_bucket || ""));
-                            setR2AccessKey(String(c.r2_access_key_id || ""));
-                            setR2SecretKey(String(c.r2_secret_access_key || ""));
-                            setCfAccountId(String(c.account_id || ""));
-                            setCfApiToken(String(c.api_token || ""));
-                          } catch {
-                            setHasCredsRecord(false);
-                          }
-                          setShowCredsSettingsModal(true);
-                        }
-                      }
-                    }}><ArrowsClockwiseIcon size={14} /></Button>
-                    <Button size="sm" className="min-w-0 mr-0" style={{ background: 'transparent' }} onPress={() => setShowUpload(true)}><PlusIcon size={14} /></Button>
-                  </div>
-                </div>
-              }
+              title="Biblioteca"
             >
               <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
-                 {libraryOpen && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {mediaItems.map((it) => {
-                      const name = (it.key || "").split('/').pop() || it.key;
-                      const isImage = (it.url || it.key) && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(String(it.url || it.key));
-                      const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
-                      return (
-                        <Button key={it.key} variant="light" className="p-0" style={{ height: 'auto' }}>
+                 <div className="flex items-center justify-between mb-2 pb-2 border-b border-foreground/10">
+                    <span className="opacity-70 text-xs font-semibold uppercase tracking-wider">Archivos</span>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="flat" isIconOnly onPress={async () => {
+                        if (!site) return;
+                        try {
+                          const items = await listMedia(site.id);
+                          setMediaItems(items as any);
+                        } catch (e: any) {
+                          const msg = String(e?.message || "");
+                          if (msg.includes("Missing R2 credentials")) {
+                            try {
+                              const c = await getCloudflareCredentials(site.id);
+                              setHasCredsRecord(true);
+                              setR2Bucket(String(c.r2_bucket || ""));
+                            } catch {}
+                          }
+                        }
+                      }}>
+                        <ArrowsClockwiseIcon className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="solid" color="primary" isIconOnly onPress={() => setShowMediaModal(true)}>
+                        <PlusIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {libraryOpen && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {mediaItems.map((it) => {
+                        const name = (it.key || "").split('/').pop() || it.key;
+                        const isImage = (it.url || it.key) && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(String(it.url || it.key));
+                        const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+                        return (
+                          <Button key={it.key} variant="light" className="p-0" style={{ height: 'auto' }}>
                           <div className="w-full">
                             {isImage ? (
                               <img src={`${(import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000"}/api/cloudflare/r2/file/${encodeURIComponent(site.id)}?key=${encodeURIComponent(it.key)}`} alt={name} className="w-full h-32 min-h-[128px] object-cover rounded" />
@@ -1009,34 +1066,106 @@ function EditorLayoutInner() {
         </ModalContent>
       </Modal>
 
-      <Modal isOpen={showMediaModal} onOpenChange={setShowMediaModal}>
+      <Modal isOpen={showMediaModal} onOpenChange={setShowMediaModal} size="3xl">
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">Biblioteca de medios</ModalHeader>
               <ModalBody>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {mediaItems.map((it) => {
-                    const isImage = it.url && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(it.url);
-                    return (
-                      <Button key={it.key} variant="light" className="p-0" onPress={() => {
-                        if (!page || !activeAttrKey) return;
-                        actions.updateComponentAttrs(page.id, state.selectedComponentPath, { [activeAttrKey]: { type: selectedComponent?.custom_attrs?.[activeAttrKey]?.type, value: it.url || it.key } as any });
-                        setShowMediaModal(false);
-                        setActiveAttrKey(null);
-                      }}>
-                        <div className="w-full">
-                          {isImage ? (
-                            <img src={it.url!} alt={it.key} className="w-full h-24 object-cover rounded" />
-                          ) : (
-                            <div className="w-full h-24 bg-gray-100 text-gray-500 flex items-center justify-center rounded">Archivo</div>
-                          )}
-                          <div className="text-[10px] break-all mt-1 px-1">{it.key}</div>
-                        </div>
-                      </Button>
-                    );
-                  })}
-                </div>
+                {mediaItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center bg-gray-50 dark:bg-gray-900 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-12 h-12 mb-4 text-gray-400">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <p className="text-gray-600 dark:text-gray-400 font-medium">No hay archivos en la biblioteca</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Sube tu primer archivo para comenzar</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {mediaItems.map((it) => {
+                      const name = (it.key || "").split('/').pop() || it.key;
+                      const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(it.key || '');
+                      const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+                      const fileSize = it.size ? `${(it.size / 1024).toFixed(1)} KB` : null;
+                      
+                      // Construct the URL - use r2_public_url if configured, otherwise backend proxy
+                      const imageUrl = r2PublicUrl 
+                        ? `${r2PublicUrl}/${it.key}`
+                        : `${(import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000"}/api/cloudflare/r2/file/${encodeURIComponent(site.id)}?key=${encodeURIComponent(it.key)}`;
+                      
+                      return (
+                        <button
+                          key={it.key}
+                          onClick={() => {
+                            if (!activeAttrKey) return;
+                            const path = state.selectedComponentPath;
+                            const patch = { 
+                              [activeAttrKey]: { 
+                                type: selectedComponent?.custom_attrs?.[activeAttrKey]?.type, 
+                                value: imageUrl 
+                              } as any 
+                            };
+                            
+                            if (path[0] === 'global_components') {
+                               actions.updateGlobalComponentAttrs(path, patch);
+                            } else if (page) {
+                               actions.updateComponentAttrs(page.id, path, patch);
+                            }
+                            
+                            setShowMediaModal(false);
+                            setActiveAttrKey(null);
+                          }}
+                          className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-0 cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-blue-500 dark:hover:border-blue-400 overflow-hidden"
+                        >
+                          {/* Thumbnail */}
+                          <div className="relative w-full h-36 bg-gray-100 dark:bg-gray-900 overflow-hidden">
+                            {isImage ? (
+                              <img 
+                                src={imageUrl}
+                                alt={name}
+                                loading="lazy"
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-10 h-10 text-gray-400">
+                                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                  <polyline points="13 2 13 9 20 9"/>
+                                </svg>
+                                {ext && (
+                                  <span className="text-xs font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded uppercase">
+                                    {ext}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* File Info */}
+                          <div className="p-3 text-left bg-white dark:bg-gray-800">
+                            <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-1" title={name}>
+                              {name.length > 18 ? name.substring(0, 18) + '...' : name}
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {ext && (
+                                <span className="text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded uppercase">
+                                  {ext}
+                                </span>
+                              )}
+                              {fileSize && (
+                                <span className="text-[10px] text-gray-500 dark:text-gray-500 font-medium">
+                                  {fileSize}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>Cerrar</Button>
@@ -1097,12 +1226,21 @@ function EditorLayoutInner() {
       
 
       {/* Diálogo para añadir componente desde biblioteca */}
+      {/* Diálogo para añadir componente desde biblioteca */}
       <AddComponentDialog
         isOpen={showAddComponentDialog}
-        onOpenChange={setShowAddComponentDialog}
+        onOpenChange={(v) => {
+          setShowAddComponentDialog(v);
+          if (!v) setAddComponentTarget({ type: 'page' }); // reset to default
+        }}
         onSelect={(comp) => {
-          if (!page) return;
-          actions.addComponentToPageFromLibrary(page.id, comp);
+          if (addComponentTarget.type === 'global') {
+            actions.setGlobalComponent(addComponentTarget.slot, comp);
+            setShowAddComponentDialog(false);
+          } else {
+             if (page) actions.addComponentToPageFromLibrary(page.id, comp);
+             setShowAddComponentDialog(false);
+          }
         }}
       />
       {/* Diálogo para seleccionar/reemplazar subcomponente dentro de custom_attrs */}

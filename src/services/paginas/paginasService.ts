@@ -17,20 +17,25 @@ export interface ClientWebsiteListItem {
 
 export interface ClientWebsite extends ClientWebsiteListItem {
   global_header?: GlobalHeader | null;
+  global_components?: unknown;
   pages?: unknown; // JSON complejo
+  design_tokens?: unknown;
 }
 
 export interface CreateClientWebsitePayload {
   name: string;
   can_change_fields_on_bd?: boolean;
   global_header?: GlobalHeader | null;
+  global_components?: unknown;
   pages?: unknown; // JSON complejo opcional
+  design_tokens?: unknown;
 }
 
 export interface UpdateClientWebsitePayload {
   name?: string;
   can_change_fields_on_bd?: boolean;
   global_header?: GlobalHeader | null;
+  global_components?: unknown;
   pages?: unknown; // JSON complejo opcional
   design_tokens?: unknown; // JSON opcional (paletas, etc.)
 }

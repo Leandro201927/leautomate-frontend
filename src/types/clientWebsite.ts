@@ -105,6 +105,10 @@ export type ClientWebsite = {
   global_header?: {
     custom_header_elements?: string;
   } | null;
+  global_components?: {
+    header?: Component;
+    footer?: Component;
+  };
   pages: Page[];
   // Global typography tokens and loaded font families
   typography?: {

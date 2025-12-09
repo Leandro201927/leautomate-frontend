@@ -17,13 +17,16 @@ type EditorActions = {
   selectComponentPath: (path: string[]) => void;
   updatePage: (pageId: string, patch: Partial<Page>) => void;
   updateComponentAttrs: (pageId: string, path: string[], patch: Record<string, CustomAttrValue>) => void;
+  updateGlobalComponentAttrs: (path: string[], patch: Record<string, CustomAttrValue>) => void;
   addPage: (type: Page["type"]) => void;
   addComponentToPage: (pageId: string) => void;
   addComponentToPageFromLibrary: (pageId: string, component: Component) => void;
   deletePage: (pageId: string) => void;
   deleteComponentFromPage: (pageId: string, index: number) => void;
+  setGlobalComponent: (slot: 'header' | 'footer', component: Component | null) => void;
   updateComponentSeo: (pageId: string, path: string[], seo: Record<string, unknown> | null) => void;
   setNestedComponentSlot: (pageId: string, path: string[], slotKey: string, component: Component | null) => void;
+  setGlobalNestedComponentSlot: (path: string[], slotKey: string, component: Component | null) => void;
   // Typography actions
   updateGlobalTypographyToken: (tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
   updatePageTypographyToken: (pageId: string, tag: keyof TypographyScale, patch: Partial<TypographyToken>) => void;
@@ -92,6 +95,16 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const comps = (p.components || []).map((c) => normalizeComponent(c));
           return { ...p, components: comps };
         });
+
+        // Normalize global components
+        let globalComps = site.global_components;
+        if (globalComps) {
+          if (globalComps.header) globalComps.header = normalizeComponent(globalComps.header);
+          if (globalComps.footer) globalComps.footer = normalizeComponent(globalComps.footer);
+        } else {
+          globalComps = {};
+        }
+
         // Initialize default typography if missing
         const defaultScale: TypographyScale = {
           h1: { font_family: "Inter", weight: 700, size_px: 36, line_height_percent: 120 },
@@ -112,6 +125,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const siteWithTypography: ClientWebsite = {
           ...site,
           pages: normalizedPages,
+          global_components: globalComps,
           typography: site.typography ?? { global: defaultScale, loaded_fonts: ["Inter"] },
           design_tokens: site.design_tokens ?? { colors: defaultColors },
         };
@@ -128,6 +142,35 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (!s.site) return s;
           const pages = s.site.pages.map((p) => (p.id === pageId ? { ...p, ...patch } : p));
           return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      setGlobalComponent(slot, component) {
+        setState((s) => {
+          if (!s.site) return s;
+          const prev = s.site.global_components || {};
+          const next = { ...prev, [slot]: component };
+          return { ...s, site: { ...s.site, global_components: next } };
+        });
+      },
+      updateGlobalComponentAttrs(path, patch) {
+        setState((s) => {
+          if (!s.site) return s;
+          const newSite = { ...s.site };
+          let target: any = newSite;
+          
+          // Path starts with 'global_components', then 'header'/'footer', then ...
+          for (const key of path) {
+            if (target && key in target) target = (target as any)[key];
+            else return s; // invalid path
+          }
+          
+          if (target && typeof target === "object") {
+            const current = (target as Component).custom_attrs ?? {};
+            (target as Component).custom_attrs = { ...current, ...patch };
+          }
+          
+          // Force new object reference for react re-render
+          return { ...s, site: { ...newSite, global_components: { ...newSite.global_components } } };
         });
       },
       updateComponentAttrs(pageId, path, patch) {
@@ -299,6 +342,34 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const pages = s.site.pages.slice();
           pages[pageIndex] = newPage;
           return { ...s, site: { ...s.site, pages } };
+        });
+      },
+      setGlobalNestedComponentSlot(path: string[], slotKey: string, component: Component | null) {
+        setState((s) => {
+          if (!s.site) return s;
+          const newSite = { ...s.site };
+          let target: any = newSite;
+          
+          for (const key of path) {
+            if (target && key in target) target = (target as any)[key];
+            else return s;
+          }
+          
+          if (target && typeof target === "object") {
+            const curAttrs = (target as Component).custom_attrs ?? {};
+            const newAttrs = { ...curAttrs } as Record<string, CustomAttrValue>;
+            if (component) {
+              newAttrs[slotKey] = { type: "component", value: component };
+            } else {
+              newAttrs[slotKey] = { type: "component", value: null };
+            }
+            (target as Component).custom_attrs = newAttrs;
+            if (slotKey in (target as any)) {
+               try { delete (target as any)[slotKey]; } catch {}
+            }
+          }
+          
+          return { ...s, site: { ...newSite, global_components: { ...newSite.global_components } } };
         });
       },
       updateGlobalTypographyToken(tag, patch) {
