@@ -1,14 +1,14 @@
 import './style.scss';
 
-export default function Header1(props: any) {
+export default function Footer1(props: any) {
   const navRaw = Array.isArray(props.navigation) ? props.navigation : [];
   const navItems = navRaw
     .map((it: any) => (it && typeof it === 'object' && 'type' in it && 'value' in it ? it.value : it))
     .filter((it: any) => it && typeof it === 'object' && ('label' in it || 'url' in it));
 
   return (
-    <header style={{ backgroundColor: props.color_background }} className="section header-1">
-      <div className="content">
+    <>
+      <footer style={{ backgroundColor: props.color_background }} className="footer-1">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '8px 16px' }}>
           {props.logo && (
             <div className="logo-container">
@@ -40,7 +40,7 @@ export default function Header1(props: any) {
             </button>
           )}
         </div>
-      </div>
-    </header>
+      </footer>
+    </>
   );
 }

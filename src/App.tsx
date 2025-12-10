@@ -1,3 +1,4 @@
+import "./styles/index.scss";
 import { Route, Routes } from "react-router-dom";
 import PaginasPage from "@/pages/paginas/paginas";
 import SeguridadPage from "./pages/seguridad/seguridad";

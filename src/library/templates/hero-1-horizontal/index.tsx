@@ -26,10 +26,12 @@ export default function Hero1Horizontal(props: any) {
 
   return (
     <>
-      <section className="hero">
-        <h1>{props.title}</h1>
-        <p>{props.description}</p>
-        {LeftSection}
+      <section className="section hero-1-horizontal">
+        <div className="content">
+          <h1>{props.title}</h1>
+          <p>{props.description}</p>
+          {LeftSection}
+        </div>
       </section>
     </>
   );

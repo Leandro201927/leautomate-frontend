@@ -424,10 +424,10 @@ function EditorLayoutInner() {
     <div className="grid grid-cols-12 gap-4 p-4">
       {/* Columna izquierda (pages + components) */}
       <div
-        className={`fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${leftVisible ? "translate-x-0 bg-content1/70 border-r border-r-foreground/10" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
+        className={`fixed left-0 top-16 h-[calc(100vh-64px)] w-[320px] ${leftVisible ? "translate-x-0 bg-content1/70 backdrop-blur-md border-r border-r-foreground/10" : "-translate-x-[80%] bg-gradient-to-r from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 space-y-0 z-40 overflow-hidden`}
       >
-        <div className={(leftVisible ? "opacity-100 flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
-          <Accordion variant="bordered" selectionMode="multiple" defaultExpandedKeys={[]} className="shadow-none">
+        <div className={(leftVisible ? "opacity-100 h-full flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
+          <Accordion variant="light" selectionMode="multiple" defaultExpandedKeys={[]} className="px-4 shadow-none flex-1 min-h-0 overflow-y-auto">
             <AccordionItem
               key="pages"
               aria-label="Páginas"
@@ -476,7 +476,7 @@ function EditorLayoutInner() {
             </AccordionItem>
 
             <AccordionItem key="colors" aria-label="Colores del sitio" indicator={<SquareHalfIcon />} title="Colores del sitio" className="shadow-none">
-              <div className="space-y-3 text-sm" style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+              <div className="space-y-3 text-sm">
                 <div className="opacity-70">Gestiona variables de color globales.</div>
                 <div className="space-y-2">
                   {Object.entries(site.design_tokens?.colors ?? {}).map(([name, value]) => (
@@ -683,13 +683,13 @@ function EditorLayoutInner() {
 
       {/* Right panels */}
       <div
-        className={`fixed right-0 top-16 h-[calc(100vh-64px)] w-[360px] ${rightVisible ? "border-l border-l-foreground/10 translate-x-0 bg-content1/70" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 p-3 space-y-0 z-40 overflow-hidden`}
+        className={`fixed right-0 top-16 h-[calc(100vh-64px)] w-[320px] ${rightVisible ? "border-l border-l-foreground/10 translate-x-0 bg-content1/70 backdrop-blur-md" : "translate-x-[80%] bg-gradient-to-l from-neutral-200 to-transparent dark:from-neutral-800 dark:to-transparent"} transition-transform duration-300 space-y-0 z-40 overflow-hidden`}
       >
-        <div className={(rightVisible ? "opacity-100" : "opacity-0") + " transition-opacity duration-300"}>
-          <Accordion variant="bordered" selectionMode="multiple" defaultExpandedKeys={[]} className="shadow-none">
+        <div className={(rightVisible ? "opacity-100 h-full flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
+          <Accordion variant="light" selectionMode="multiple" defaultExpandedKeys={[]} className="px-4 shadow-none flex-1 min-h-0 overflow-y-auto">
             {site.typography && (
               <AccordionItem key="typo" aria-label="Tipografía Global" indicator={<TextTIcon />} title="Tipografía Global" className="shadow-none">
-                <div style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+                <div>
                   <TypographyPanel
                     scope="global"
                     tokens={globalTokensForPanel!}
@@ -704,7 +704,7 @@ function EditorLayoutInner() {
               {!page ? (
                 <div className="opacity-70">Crea una página para ver y editar sus propiedades SEO.</div>
               ) : (
-                <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}> 
+                <div className={"space-y-2 text-sm"}> 
                   <Input
                     label="title"
                     value={page.title}
@@ -837,7 +837,7 @@ function EditorLayoutInner() {
             </AccordionItem>
 
             <AccordionItem key="component" aria-label="Propiedades de Componente" indicator={<PuzzlePieceIcon />} title="Propiedades de Componente" className="shadow-none">
-              <div className="space-y-4 text-sm" style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+              <div className="space-y-4 text-sm">
                 {!selectedComponent ? (
                   <div className="opacity-70">Selecciona un componente de la lista para editar sus propiedades.</div>
                 ) : (
@@ -935,7 +935,7 @@ function EditorLayoutInner() {
               className="shadow-none"
               title="Biblioteca"
             >
-              <div className={"space-y-2 text-sm"} style={{ maxHeight: "calc((100vh - 64px)/3)", overflowY: "auto" }}>
+              <div className={"space-y-2 text-sm"}>
                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-foreground/10">
                     <span className="opacity-70 text-xs font-semibold uppercase tracking-wider">Archivos</span>
                     <div className="flex items-center gap-1">

@@ -1,0 +1,13 @@
+.footer-1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  top: 0;
+  left: 0;
+  right: 0;
+  .logo-container {
+    max-width: 240px;
+    height: auto;
+  }
+}

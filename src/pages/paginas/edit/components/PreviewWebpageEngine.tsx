@@ -188,6 +188,35 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
 
   const components = page.components || [];
 
+  useEffect(() => {
+    const wraps = Array.from(document.querySelectorAll('.preview-engine .comp-wrap')) as HTMLElement[];
+    const update = (wrap: HTMLElement) => {
+      const child = wrap.firstElementChild as HTMLElement | null;
+      if (!child) return;
+      const rect = child.getBoundingClientRect();
+      wrap.style.minHeight = `${rect.height}px`;
+    };
+    wraps.forEach((wrap) => {
+      update(wrap);
+    });
+    const observers: ResizeObserver[] = [];
+    wraps.forEach((wrap) => {
+      const child = wrap.firstElementChild as HTMLElement | null;
+      if (!child) return;
+      const ro = new ResizeObserver(() => update(wrap));
+      ro.observe(child);
+      observers.push(ro);
+    });
+    const onResize = () => {
+      wraps.forEach(update);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      observers.forEach((o) => o.disconnect());
+      window.removeEventListener('resize', onResize);
+    };
+  }, [components, state.site?.global_components, fontsUsed.join("|")]);
+
   return (
     <div className="preview-engine w-full h-full">
       <style>{css}</style>
