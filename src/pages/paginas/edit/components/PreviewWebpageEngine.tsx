@@ -172,12 +172,16 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
   const css = useMemo(() => {
     const base = tokensToCss(pageTokens);
     const extra = `
-    .comp-wrap { position: relative; }
-    .comp-wrap.active { outline: 2px solid #171717; outline-offset: -2px; z-index: 10; }
-    .comp-wrap:not(.active):hover { outline: 1px dashed #a3a3a3; outline-offset: -1px; cursor: pointer; }
-    [data-component-path] { position: relative; }
-    [data-component-path]:not(.selected-sub):hover { outline: 1px dashed #a3a3a3; outline-offset: -1px; cursor: pointer; }
-    .selected-sub { outline: 2px solid #171717; outline-offset: -2px; z-index: 10; }
+    .comp-wrap { position: relative; z-index: 0; }
+    .comp-wrap::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
+    .comp-wrap:not(.active):hover::after { outline: 1px dashed #a3a3a3; outline-offset: -1px; }
+    .comp-wrap.active::after { outline: 2px solid #171717; outline-offset: -2px; }
+    .comp-wrap:not(.active) { cursor: pointer; }
+    [data-component-path] { position: relative; z-index: 0; }
+    [data-component-path]::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
+    [data-component-path]:not(.selected-sub):hover::after { outline: 1px dashed #a3a3a3; outline-offset: -1px; }
+    .selected-sub::after { outline: 2px solid #171717; outline-offset: -2px; }
+    [data-component-path]:not(.selected-sub) { cursor: pointer; }
     `;
     return `${base}\n${extra}`;
   }, [pageTokens]);
