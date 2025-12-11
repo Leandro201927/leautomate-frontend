@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import { EditorProvider, useEditor } from "./context/EditorContext";
 import type { Component } from "@/types/clientWebsite";
-import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Tab, Tabs, Accordion, AccordionItem, Chip } from "@heroui/react";
+import { Card, CardBody, Button, Input, Textarea, Switch, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Tab, Tabs, Accordion, AccordionItem, Chip, Select, SelectItem } from "@heroui/react";
 import type { LayoutOutletContext } from "@/layouts/default";
 import { DesktopIcon, DeviceMobileIcon, DeviceTabletIcon, SquareHalfIcon, SquareIcon, FilesIcon, PuzzlePieceIcon, TextTIcon, PlusIcon, Trash as TrashIcon, KeyIcon, ArrowsClockwiseIcon } from "@phosphor-icons/react";
 import AddComponentDialog from "./components/AddComponentDialog";
@@ -860,41 +860,125 @@ function EditorLayoutInner() {
                         };
 
                         if (valType === "img" || valType === "file") {
+                          const rawUrl = String(valValue || "");
+                          const baseUrl = rawUrl.split('?')[0];
+                          const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(baseUrl) || /^data:image\//.test(rawUrl);
+                          const name = baseUrl.split("/").pop() || baseUrl;
+                          const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
                           return (
-                            <div key={k} className="flex gap-2 items-end">
-                              <Input label={k} value={String(valValue || "")} onValueChange={updateAttr} className="flex-1" />
-                              <Button isIconOnly onPress={() => { setActiveAttrKey(k); setShowMediaModal(true); }}>
-                                <FilesIcon />
-                              </Button>
+                            <div key={k} className="flex gap-3 items-center">
+                              <div className="w-32 h-20 rounded border border-foreground/10 overflow-hidden bg-content2 flex items-center justify-center">
+                                {rawUrl ? (
+                                  isImage ? (
+                                    <img src={rawUrl} alt={name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                  ) : (
+                                    <div className="flex items-center gap-2 px-2 text-xs">
+                                      <FilesIcon />
+                                      <span className="truncate" title={name}>{name}</span>
+                                      {ext && (<Chip size="sm" variant="flat">{ext}</Chip>)}
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="text-[10px] opacity-50">Sin archivo</div>
+                                )}
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <Button isIconOnly onPress={() => { setActiveAttrKey(k); setShowMediaModal(true); }}>
+                                  <FilesIcon />
+                                </Button>
+                              </div>
                             </div>
                           );
                         }
                         
                         if (valType === "color") {
+                          const colors = site?.design_tokens?.colors ?? {};
+                          const colorKeys = Object.keys(colors);
+                          const selectedToken = (typeof valValue === 'string' && valValue.startsWith('var:')) ? valValue.slice(4) : undefined;
                           return (
                             <div key={k} className="flex items-center gap-2">
-                               <Input label={k} value={String(valValue ?? "#000000")} onValueChange={updateAttr} className="flex-1" />
-                               <input type="color" value={String(valValue ?? "#000000")} onChange={(e) => updateAttr(e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
+                              <Select 
+                                label={k}
+                                selectedKeys={selectedToken ? new Set([selectedToken]) : new Set([])}
+                                onSelectionChange={(sel) => {
+                                  const keySel = Array.from(sel as any)[0];
+                                  if (keySel) updateAttr(`var:${keySel}`);
+                                }}
+                                className="flex-1"
+                              >
+                                {colorKeys.map((ck) => (
+                                  <SelectItem key={ck} value={ck} textValue={ck}>
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-block w-4 h-4 rounded border border-foreground/10" style={{ backgroundColor: colors[ck] }} />
+                                      <span className="text-sm">{ck}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </Select>
+                              <input 
+                                type="color" 
+                                value={typeof valValue === 'string' && valValue.startsWith('#') ? valValue : '#000000'} 
+                                onChange={(e) => updateAttr(e.target.value)} 
+                                className="w-8 h-8 rounded cursor-pointer border border-gray-200" 
+                              />
                             </div>
                           );
                         }
 
                         if (valType === "array" && Array.isArray(valValue)) {
-                           // Simplified Array Editor
+                           const complexObjects = valValue.every((it: any) => it && typeof it === 'object' && it.type === 'object' && it.value && typeof it.value === 'object');
+                           if (complexObjects && valValue.length > 0) {
+                             const keys = Object.keys(valValue[0].value || {});
+                             const keyA = keys[0];
+                             const keyB = keys[1];
+                             return (
+                               <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
+                                 <div className="font-semibold text-xs opacity-70">{k} (Array)</div>
+                                 <div className="space-y-2">
+                                   {valValue.map((item: any, idx: number) => (
+                                     <div key={idx} className="grid grid-cols-2 gap-2 items-end">
+                                       <Input 
+                                         label={keyA}
+                                         value={String(item.value?.[keyA] ?? '')}
+                                         onValueChange={(v) => {
+                                           const next = [...valValue];
+                                           next[idx] = { type: 'object', value: { ...item.value, [keyA]: v } };
+                                           updateAttr(next);
+                                         }}
+                                       />
+                                       <div className="flex items-end gap-2">
+                                         <Input 
+                                           label={keyB}
+                                           value={String(item.value?.[keyB] ?? '')}
+                                           onValueChange={(v) => {
+                                             const next = [...valValue];
+                                             next[idx] = { type: 'object', value: { ...item.value, [keyB]: v } };
+                                             updateAttr(next);
+                                           }}
+                                           className="flex-1"
+                                         />
+                                         <Button isIconOnly variant="flat" color="danger" onPress={() => {
+                                           const next = valValue.filter((_: any, i: number) => i !== idx);
+                                           updateAttr(next);
+                                         }}>
+                                           <TrashIcon />
+                                         </Button>
+                                       </div>
+                                     </div>
+                                   ))}
+                                   <div>
+                                     <Button size="sm" variant="flat" onPress={() => {
+                                       const empty = { type: 'object', value: { [keyA]: '', [keyB]: '' } };
+                                       updateAttr([...(valValue as any[]), empty]);
+                                     }}>Añadir ítem</Button>
+                                   </div>
+                                 </div>
+                               </div>
+                             );
+                           }
                            return (
                              <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
                                <div className="font-semibold text-xs opacity-70">{k} (Array)</div>
-                               <div className="max-h-40 overflow-y-auto space-y-2">
-                                 {valValue.map((item, idx) => (
-                                   <div key={idx} className="pl-2 border-l-2 border-primary/20">
-                                      {typeof item === 'object' ? (
-                                        <div className="text-xs opacity-50">Item {idx + 1} (Complex Object) - Edit via JSON below</div>
-                                      ) : (
-                                        <div className="text-sm">{String(item)}</div>
-                                      )}
-                                   </div>
-                                 ))}
-                               </div>
                                <Textarea 
                                  label="Edit JSON" 
                                  minRows={1} 
@@ -906,10 +990,22 @@ function EditorLayoutInner() {
                         }
 
                         if (valType === "object" && valValue && typeof valValue === 'object') {
+                           const keys = Object.keys(valValue || {});
+                           if (keys.length === 2) {
+                             const [keyA, keyB] = keys;
+                             return (
+                               <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
+                                 <div className="font-semibold text-xs opacity-70">{k} (Object)</div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                   <Input label={keyA} value={String(valValue[keyA] ?? '')} onValueChange={(v) => updateAttr({ ...valValue, [keyA]: v })} />
+                                   <Input label={keyB} value={String(valValue[keyB] ?? '')} onValueChange={(v) => updateAttr({ ...valValue, [keyB]: v })} />
+                                 </div>
+                               </div>
+                             );
+                           }
                            return (
                              <div key={k} className="p-2 border border-foreground/10 rounded space-y-2">
                                <div className="font-semibold text-xs opacity-70">{k} (Object)</div>
-                               {/* Allow nested slot editing if it has 'slot' property? No, keeping it simple for now */}
                                <Textarea 
                                  minRows={3} 
                                  value={JSON.stringify(valValue, null, 2)} 
@@ -917,6 +1013,27 @@ function EditorLayoutInner() {
                                />
                              </div>
                            );
+                        }
+
+                        if (valType === 'component') {
+                          const slotComp = valValue as any;
+                          const isGlobalSlot = state.selectedComponentPath[0] === 'global_components';
+                          return (
+                            <div key={k} className="p-2 border border-foreground/10 rounded">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="font-semibold text-xs opacity-70">{k} (Componente)</div>
+                                <div className="text-xs opacity-70">{slotComp?.name ? `Seleccionado: ${slotComp.name}` : 'Vacío'}</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="solid" color="primary" onPress={() => setSelectSubComponentSlotKey(k)}>Añadir/Reemplazar</Button>
+                                <Button size="sm" variant="flat" color="danger" onPress={() => {
+                                  const path = state.selectedComponentPath;
+                                  if (isGlobalSlot) actions.setGlobalNestedComponentSlot(path, k, null);
+                                  else if (page) actions.setNestedComponentSlot(page.id, path, k, null);
+                                }}>Eliminar</Button>
+                              </div>
+                            </div>
+                          );
                         }
 
                         // Default Text/Number
@@ -1248,8 +1365,13 @@ function EditorLayoutInner() {
         isOpen={!!selectSubComponentSlotKey}
         onOpenChange={(open) => { if (!open) setSelectSubComponentSlotKey(null); }}
         onSelect={(comp) => {
-          if (!page || !selectSubComponentSlotKey) return;
-          actions.setNestedComponentSlot(page.id, state.selectedComponentPath, selectSubComponentSlotKey, comp);
+          if (!selectSubComponentSlotKey) return;
+          const path = state.selectedComponentPath;
+          if (path[0] === 'global_components') {
+            actions.setGlobalNestedComponentSlot(path, selectSubComponentSlotKey, comp);
+          } else if (page) {
+            actions.setNestedComponentSlot(page.id, path, selectSubComponentSlotKey, comp);
+          }
           setSelectSubComponentSlotKey(null);
         }}
       />
