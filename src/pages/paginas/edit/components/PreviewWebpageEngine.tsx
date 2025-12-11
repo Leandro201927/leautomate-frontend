@@ -177,6 +177,7 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
     .comp-wrap:not(.active):hover::after { outline: 1px dashed #a3a3a3; outline-offset: -1px; }
     .comp-wrap.active::after { outline: 2px solid #171717; outline-offset: -2px; }
     .comp-wrap:not(.active) { cursor: pointer; }
+    .sticky-top { position: sticky; top: 0; z-index: 1000; }
     [data-component-path] { position: relative; z-index: 0; }
     [data-component-path]::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 9999; }
     [data-component-path]:not(.selected-sub):hover::after { outline: 1px dashed #a3a3a3; outline-offset: -1px; }
@@ -295,7 +296,7 @@ export default function PreviewWebpageEngine({ page }: { page?: Page | null }) {
         {/* Global Header */}
         {state.site?.global_components?.header && (
             <div 
-              className={`comp-wrap ${state.selectedComponentPath[0] === 'global_components' && state.selectedComponentPath[1] === 'header' ? 'active' : ''}`}
+              className={`comp-wrap sticky-top ${state.selectedComponentPath[0] === 'global_components' && state.selectedComponentPath[1] === 'header' ? 'active' : ''}`}
               data-global-slot="header"
             >
                 <ComponentRenderer
