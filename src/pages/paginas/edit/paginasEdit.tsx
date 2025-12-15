@@ -168,7 +168,7 @@ function EditorLayoutInner() {
           ? site.global_header.custom_header_elements
           : (site.global_header.custom_header_elements ? [site.global_header.custom_header_elements] : undefined),
       } : null;
-      const updated = await updateClientWebsite(site.id, {
+      await updateClientWebsite(site.id, {
         name: site.name,
         can_change_fields_on_bd: !!site.can_change_fields_on_bd,
         global_header: gh,
