@@ -133,14 +133,13 @@ function EditorLayoutInner() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [newColorName, setNewColorName] = useState("");
   const [newColorValue, setNewColorValue] = useState("#000000");
-  const [showExportModal, setShowExportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [cfAccountId, setCfAccountId] = useState("");
   const [cfApiToken, setCfApiToken] = useState("");
   const [pagesProject, setPagesProject] = useState("");
   const [pagesBuildHook, setPagesBuildHook] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
-  const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [loadingCreds, setLoadingCreds] = useState(false);
   const [showCredsSettingsModal, setShowCredsSettingsModal] = useState(false);
@@ -157,6 +156,17 @@ function EditorLayoutInner() {
   const [r2SecretKey, setR2SecretKey] = useState("");
   const [r2PublicUrl, setR2PublicUrl] = useState("");
   const [hasCredsRecord, setHasCredsRecord] = useState(true);
+
+  const resolveMediaAttrUrl = (val: string): string => {
+    const clean = String(val || '').trim().replace(/^`+|`+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '');
+    if (/^https?:\/\//i.test(clean) || /^data:image\//i.test(clean)) return clean;
+    if (clean.startsWith('//')) return `https:${clean}`;
+    const key = clean.replace(/^\/+/, '');
+    if (/^userupload\//.test(key)) return `https://cdn.dribbble.com/${key}`;
+    if (r2PublicUrl) return `${r2PublicUrl}/${key}`;
+    const base = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000";
+    return `${base}/api/cloudflare/r2/file/${encodeURIComponent(site?.id || '')}?key=${encodeURIComponent(key)}`;
+  };
 
   async function handleSave() {
     if (!site) return;
@@ -205,7 +215,7 @@ function EditorLayoutInner() {
         <Button color="primary" isLoading={saving} onPress={handleSave}>
           Guardar
         </Button>
-        <Button variant="bordered" isLoading={exporting} onPress={() => setShowExportModal(true)}>Exportar</Button>
+        <Button variant="bordered" isLoading={exporting} onPress={handleExport}>Exportar</Button>
         {saveMessage && (
           <span className={saveMessage.includes("Error") ? "text-danger text-xs" : "text-success text-xs"}>{saveMessage}</span>
         )}
@@ -220,26 +230,20 @@ function EditorLayoutInner() {
     return () => setHeaderRightSlot(undefined);
   }, [previewMode, panelsMode, saving, saveMessage, site, setHeaderRightSlot]);
 
-  useEffect(() => {
-    if (showExportModal && site) {
-      setLoadingCreds(true);
-      getCloudflareCredentials(site.id)
-        .then((c) => {
-          setCfAccountId(String(c.account_id || ""));
-          setCfApiToken(String(c.api_token || ""));
-          setPagesProject(String(c.pages_project || ""));
-          setPagesBuildHook(String(c.pages_build_hook || ""));
-          setSupabaseUrl(String(c.supabase_url || ""));
-          setSupabaseAnonKey(String(c.supabase_anon_key || ""));
-          setR2Bucket(String(c.r2_bucket || ""));
-          setR2AccessKey(String(c.r2_access_key_id || ""));
-          setR2SecretKey(String(c.r2_secret_access_key || ""));
-          setR2PublicUrl(String(c.r2_public_url || ""));
-        })
-        .catch(() => {})
-        .finally(() => setLoadingCreds(false));
+  async function handleExport() {
+    if (!site) return;
+    try {
+      setExporting(true);
+      const res = await exportClientWebsite(site.id);
+      setExportMessage(`OK (${res.pages_exported} páginas, ${res.components_copied} componentes)`);
+      setTimeout(() => setExportMessage(null), 3000);
+    } catch (e: any) {
+      setExportMessage(String(e?.message || e || 'Error'));
+      setTimeout(() => setExportMessage(null), 4000);
+    } finally {
+      setExporting(false);
     }
-  }, [showExportModal, site]);
+  }
 
   useEffect(() => {
     if (showCredsSettingsModal && site) {
@@ -859,12 +863,34 @@ function EditorLayoutInner() {
                           else if (page) actions.updateComponentAttrs(page.id, state.selectedComponentPath, patch);
                         };
 
-                        if (valType === "img" || valType === "file") {
-                          const rawUrl = String(valValue || "");
-                          const baseUrl = rawUrl.split('?')[0];
-                          const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(baseUrl) || /^data:image\//.test(rawUrl);
+                        if (valType === "img") {
+                          const rawUrl = resolveMediaAttrUrl(String(valValue || ""));
+                          const baseUrl = rawUrl.split("?")[0];
+                          const name = baseUrl.split("/").pop() || baseUrl;
+                          return (
+                            <div key={k} className="flex gap-3 items-center">
+                              <div className="w-32 h-20 rounded border border-foreground/10 overflow-hidden bg-content2 flex items-center justify-center">
+                                {rawUrl ? (
+                                  <img src={rawUrl} alt={name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                                ) : (
+                                  <div className="text-[10px] opacity-50">Sin archivo</div>
+                                )}
+                              </div>
+                              <div className="flex items-end gap-2">
+                                <Button isIconOnly onPress={() => { setActiveAttrKey(k); setShowMediaModal(true); }}>
+                                  <FilesIcon />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (valType === "file") {
+                          const rawUrl = resolveMediaAttrUrl(String(valValue || ""));
+                          const baseUrl = rawUrl.split("?")[0];
                           const name = baseUrl.split("/").pop() || baseUrl;
                           const ext = String(name).match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+                          const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(baseUrl) || /^data:image\//.test(rawUrl);
                           return (
                             <div key={k} className="flex gap-3 items-center">
                               <div className="w-32 h-20 rounded border border-foreground/10 overflow-hidden bg-content2 flex items-center justify-center">
@@ -1136,52 +1162,7 @@ function EditorLayoutInner() {
         </ModalContent>
       </Modal>
 
-      <Modal isOpen={showExportModal} onOpenChange={setShowExportModal}>
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">Exportar</ModalHeader>
-              <ModalBody>
-                <div className="space-y-3">
-                  <div className="font-semibold text-sm">Cloudflare</div>
-                  <Input isDisabled={loadingCreds} label="account_id" value={cfAccountId} onValueChange={setCfAccountId} />
-                  <Input isDisabled={loadingCreds} label="api_token" type="text" value={cfApiToken} onValueChange={setCfApiToken} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Input isDisabled={loadingCreds} label="r2_bucket" value={r2Bucket} onValueChange={setR2Bucket} autoComplete="off" name="r2-bucket" placeholder="test" />
-                    <Input isDisabled={loadingCreds} label="r2_access_key_id" value={r2AccessKey} onValueChange={setR2AccessKey} autoComplete="off" name="r2-access-key-id" placeholder="e12fe8b..." />
-                    <Input isDisabled={loadingCreds} label="r2_secret_access_key" value={r2SecretKey} onValueChange={setR2SecretKey} autoComplete="off" name="r2-secret-access-key" placeholder="4d0a31..." />
-                  </div>
-                  <Input isDisabled={loadingCreds} label="r2_public_url" value={r2PublicUrl} onValueChange={setR2PublicUrl} autoComplete="off" name="r2-public-url" placeholder="https://pub-xxx.r2.dev" description="URL pública de R2 para descargas gratuitas" />
-                  <Input isDisabled={loadingCreds} label="pages_project" value={pagesProject} onValueChange={setPagesProject} />
-                  <Input isDisabled={loadingCreds} label="pages_build_hook" value={pagesBuildHook} onValueChange={setPagesBuildHook} />
-                  <div className="font-semibold text-sm">Supabase</div>
-                  <Input isDisabled={loadingCreds} label="supabase_url" value={supabaseUrl} onValueChange={setSupabaseUrl} />
-                  <Input isDisabled={loadingCreds} label="supabase_anon_key" type="text" value={supabaseAnonKey} onValueChange={setSupabaseAnonKey} />
-                </div>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose}>Cancelar</Button>
-                <Button color="primary" isLoading={exporting} onPress={async () => {
-                  if (!site) return;
-                  try {
-                    setExporting(true);
-                    await saveCloudflareCredentials({ client_website_id: site.id, account_id: cfAccountId.trim(), api_token: cfApiToken.trim(), r2_bucket: r2Bucket.trim() || undefined, r2_access_key_id: r2AccessKey.trim() || undefined, r2_secret_access_key: r2SecretKey.trim() || undefined, r2_public_url: r2PublicUrl.trim() || undefined, supabase_url: supabaseUrl.trim() || undefined, supabase_anon_key: supabaseAnonKey.trim() || undefined, pages_project: pagesProject.trim() || undefined, pages_build_hook: pagesBuildHook.trim() || undefined });
-                    const res = await exportClientWebsite(site.id);
-                    setExportMessage(`OK (${res.pages_exported} páginas, ${res.components_copied} componentes)`);
-                    onClose();
-                    setTimeout(() => setExportMessage(null), 3000);
-                  } catch (e: any) {
-                    setExportMessage(String(e?.message || e || 'Error'));
-                    setTimeout(() => setExportMessage(null), 4000);
-                  } finally {
-                    setExporting(false);
-                  }
-                }}>Exportar</Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+      {/* Exportación directa sin modal: las credenciales se gestionan en el botón de llave */}
 
       <Modal isOpen={showMediaModal} onOpenChange={setShowMediaModal} size="3xl">
         <ModalContent>
