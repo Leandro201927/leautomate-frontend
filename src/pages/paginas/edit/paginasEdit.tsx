@@ -11,6 +11,7 @@ import type { TypographyScale } from "@/types/clientWebsite";
 import PreviewWebpageEngine from "./components/PreviewWebpageEngine";
 import { updateClientWebsite, saveCloudflareCredentials, exportClientWebsite, getCloudflareCredentials } from "@/services/paginas/paginasService";
 import { listMedia, presignUpload, finalizeUpload, uploadDirect } from "@/services/mediaService";
+import { GearIcon } from '@phosphor-icons/react'
 
 function pathsEqual(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -100,6 +101,83 @@ function PanelsControls({ panelsMode, setPanelsMode }: { panelsMode: "none" | "l
       <Tab className="px-2" key="right" title={<span className="text-xs"><SquareHalfIcon weight="duotone" /></span>} onClick={() => setPanelsMode("right")} />
       <Tab className="px-2" key="both" title={<span className="text-xs"><SquareIcon weight="fill" /></span>} onClick={() => setPanelsMode("both")} />
     </Tabs>
+  );
+}
+
+function GlobalSettingsPanel() {
+  const { state, actions } = useEditor();
+  const site = state.site;
+  const [customElementInput, setCustomElementInput] = useState("");
+
+  if (!site) return null;
+
+  const globalHeader = site.global_header || {};
+  const customElements = globalHeader.custom_header_elements || [];
+
+  const updateGlobalHeader = (patch: Partial<typeof globalHeader>) => {
+    actions.updateSite({
+      global_header: { ...globalHeader, ...patch }
+    });
+  };
+
+  const addCustomElement = () => {
+    const v = customElementInput.trim();
+    if (!v) return;
+    const newElements = [...customElements, v];
+    updateGlobalHeader({ custom_header_elements: newElements });
+    setCustomElementInput("");
+  };
+
+  const removeCustomElement = (index: number) => {
+    const newElements = customElements.filter((_, i) => i !== index);
+    updateGlobalHeader({ custom_header_elements: newElements });
+  };
+
+  return (
+    <div className="space-y-4 text-sm">
+      <Input
+        label="Nombre del sitio"
+        value={site.name}
+        onValueChange={(v) => actions.updateSite({ name: v })}
+      />
+      <div className="flex items-center justify-between">
+        <span>Puede cambiar campos en BD</span>
+        <Switch
+          size="sm"
+          isSelected={!!site.can_change_fields_on_bd}
+          onValueChange={(v) => actions.updateSite({ can_change_fields_on_bd: v })}
+        />
+      </div>
+      <Input
+        label="Título global"
+        placeholder="general_global_title"
+        value={globalHeader.general_global_title || ""}
+        onValueChange={(v) => updateGlobalHeader({ general_global_title: v })}
+      />
+
+      <div className="space-y-2">
+        <div className="font-semibold">Elementos de header personalizados</div>
+        <div className="flex gap-2">
+          <Input
+            size="sm"
+            placeholder="<script>...</script>"
+            value={customElementInput}
+            onValueChange={setCustomElementInput}
+          />
+          <Button size="sm" onPress={addCustomElement}>Agregar</Button>
+        </div>
+        <ul className="space-y-1">
+          {customElements.map((el, idx) => (
+            <li key={idx} className="flex items-center gap-2 bg-content1/50 p-2 rounded">
+              <span className="truncate flex-1 text-xs">{el}</span>
+              <Button size="sm" isIconOnly variant="light" color="danger" onPress={() => removeCustomElement(idx)}>
+                <TrashIcon />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
@@ -432,6 +510,9 @@ function EditorLayoutInner() {
       >
         <div className={(leftVisible ? "opacity-100 h-full flex flex-col" : "opacity-0") + " transition-opacity duration-300"}>
           <Accordion variant="light" selectionMode="multiple" defaultExpandedKeys={[]} className="px-4 shadow-none flex-1 min-h-0 overflow-y-auto">
+            <AccordionItem key="settings" aria-label="Configuración Global" indicator={<GearIcon />} title="Configuración Global" className="shadow-none">
+              <GlobalSettingsPanel />
+            </AccordionItem>
             <AccordionItem
               key="pages"
               aria-label="Páginas"

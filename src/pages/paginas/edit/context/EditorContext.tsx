@@ -41,6 +41,7 @@ type EditorActions = {
   addDesignColorToken: (name: string, value: string) => void;
   updateDesignColorToken: (name: string, value: string) => void;
   removeDesignColorToken: (name: string) => void;
+  updateSite: (patch: Partial<ClientWebsite>) => void;
 };
 
 const EditorContext = createContext<{ state: EditorState; actions: EditorActions } | undefined>(
@@ -480,6 +481,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const colors = { ...(s.site.design_tokens?.colors ?? {}) };
           delete colors[name];
           return { ...s, site: { ...s.site, design_tokens: { colors } } };
+        });
+      },
+      updateSite(patch) {
+        setState((s) => {
+          if (!s.site) return s;
+          return { ...s, site: { ...s.site, ...patch } };
         });
       },
     }),
